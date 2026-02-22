@@ -13,6 +13,31 @@ Built for the [vibecode.finance](https://vibecodedotfinance.vercel.app) OPNet da
 - **No admin keys**: Faucets are irrevocable once created
 - **Approve & deposit** workflow: creator approves token transfer, then creates the faucet
 
+## One-Command Deploy
+
+```bash
+git clone https://github.com/frenchchoco/faucet-centralizator.git
+cd faucet-centralizator
+npm run deploy
+```
+
+That's it. The script handles everything automatically:
+
+1. Generates a deployer wallet (or uses existing `.env` mnemonic)
+2. Installs all dependencies (contract, frontend, scripts)
+3. Builds the smart contract WASM
+4. Shows your P2TR address — fund it at https://faucet.opnet.org
+5. Polls for on-chain funding confirmation
+6. Deploys the FaucetManager contract
+7. Updates the frontend with the deployed contract address
+8. Builds the frontend
+9. Deploys to Vercel (auto-links if needed)
+10. Commits & pushes the contract address to GitHub
+
+The only manual step is funding your wallet with regtest BTC from the faucet.
+
+For mainnet: `npm run deploy:mainnet`
+
 ## Architecture
 
 ```
@@ -45,8 +70,9 @@ faucet-centralizator/
 │   ├── api/                   # Vercel Edge Functions
 │   │   └── verify-claim.ts    # Anti-sybil IP check
 │   └── vercel.json            # Vercel deployment config
-├── scripts/           # Deployment scripts
-│   └── deploy.ts              # Contract deployment via SDK
+├── scripts/           # Deploy-all pipeline
+│   └── deploy.ts              # Fully automated deployment script
+├── package.json       # Root — npm run deploy
 ├── .env.example       # Environment template
 └── CLAUDE.md          # AI assistant project rules
 ```
@@ -64,62 +90,25 @@ The **FaucetManager** contract (AssemblyScript compiled to WASM) supports:
 
 **Cooldown types**: 0 = one-shot, 1 = hourly, 2 = 6h, 3 = 12h, 4 = daily
 
-## Getting Started
+## Development
 
 ### Prerequisites
 
 - Node.js 18+
 - An OPNet-compatible wallet (OP_WALLET)
-- Regtest BTC for contract deployment
 
-### Build the Contract
-
-```bash
-cd contract
-npm install
-npm run build
-```
-
-### Run the Frontend
+### Local Development
 
 ```bash
-cd frontend
-npm install
+# Run frontend dev server
 npm run dev
+
+# Build contract only
+npm run build:contract
+
+# Build frontend only
+npm run build:frontend
 ```
-
-### Deploy Everything (Contract + Vercel)
-
-The deploy script handles the full pipeline: wallet derivation, funding check, contract deployment, frontend config update, build, and Vercel deploy.
-
-1. Copy `.env.example` to `.env` and add your deployer mnemonic:
-   ```
-   DEPLOYER_MNEMONIC=your 24 word mnemonic phrase here
-   ```
-
-2. Link Vercel to your project (one-time):
-   ```bash
-   cd frontend && npx vercel link
-   ```
-
-3. Create a Vercel KV store in the dashboard and link it (for anti-sybil)
-
-4. Run the full deploy:
-   ```bash
-   cd scripts
-   npm install
-   npm run deploy                  # regtest (default)
-   npm run deploy -- --mainnet     # mainnet
-   ```
-
-The script will:
-- Show your deployer P2TR address and wait for you to fund it
-- Poll for UTXOs (10 min max on regtest, 30 min on mainnet)
-- Deploy the contract and print the address
-- Update `frontend/src/config/contracts.ts` automatically
-- Build the frontend and deploy to Vercel
-- Commit + push the contract address to GitHub
-- Print the final live URL
 
 ## Tech Stack
 

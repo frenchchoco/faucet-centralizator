@@ -1,27 +1,27 @@
 /**
- * Faucet Centralizator — Full Deploy Script
+ * Faucet Centralizator — Fully Automated Deploy-All Script
  *
- * This script handles the entire deployment pipeline:
- *   1. Derive deployer wallet from mnemonic
- *   2. Show the P2TR address and ask the user to fund it
- *   3. Poll until the address has UTXOs (10 min max on regtest, balance check on mainnet)
- *   4. Deploy the FaucetManager contract
- *   5. Update frontend/src/config/contracts.ts with the deployed address
- *   6. Build the frontend
- *   7. Deploy to Vercel
- *   8. Print the live URL
+ * One command does everything:
+ *   1. Generate a deployer wallet (or use existing mnemonic)
+ *   2. Install all dependencies (contract, frontend, scripts)
+ *   3. Build the smart contract WASM
+ *   4. Show the P2TR address and wait for funding
+ *   5. Deploy the FaucetManager contract on-chain
+ *   6. Update frontend config with deployed contract address
+ *   7. Build the frontend
+ *   8. Deploy to Vercel
+ *   9. Commit + push the contract address
  *
  * Usage:
- *   1. Copy ../.env.example to ../.env and set DEPLOYER_MNEMONIC
- *   2. cd scripts && npm install
- *   3. npm run deploy                  # regtest (default)
- *   3. npm run deploy -- --mainnet     # mainnet
+ *   npm run deploy                  # regtest (default)
+ *   npm run deploy -- --mainnet     # mainnet
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import readline from 'node:readline';
 
 import { networks } from '@btc-vision/bitcoin';
 import {
@@ -36,10 +36,12 @@ import { JSONRpcProvider } from 'opnet';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const WASM_PATH = path.resolve(ROOT, 'contract/build/FaucetManager.wasm');
+const CONTRACT_DIR = path.resolve(ROOT, 'contract');
+const WASM_PATH = path.resolve(CONTRACT_DIR, 'build/FaucetManager.wasm');
 const ENV_PATH = path.resolve(ROOT, '.env');
 const CONTRACTS_TS = path.resolve(ROOT, 'frontend/src/config/contracts.ts');
 const FRONTEND_DIR = path.resolve(ROOT, 'frontend');
+const SCRIPTS_DIR = __dirname;
 
 // ── Network config ────────────────────────────────────────────────
 
@@ -48,30 +50,12 @@ const NETWORK = isMainnet ? networks.bitcoin : networks.regtest;
 const RPC_URL = isMainnet ? 'https://api.opnet.org' : 'https://regtest.opnet.org';
 const NETWORK_LABEL = isMainnet ? 'mainnet' : 'regtest';
 const CURRENCY = isMainnet ? 'BTC' : 'rBTC';
+const FAUCET_URL = 'https://faucet.opnet.org';
 
-// regtest blocktime ~10 min, mainnet we just check balance
-const POLL_INTERVAL_MS = 10_000; // 10 seconds between checks
-const MAX_POLL_MS = isMainnet ? 30 * 60_000 : 10 * 60_000; // 30 min mainnet, 10 min regtest
+const POLL_INTERVAL_MS = 10_000;
+const MAX_POLL_MS = isMainnet ? 30 * 60_000 : 10 * 60_000;
 
 // ── Helpers ───────────────────────────────────────────────────────
-
-function loadEnv(): Record<string, string> {
-    const env: Record<string, string> = {};
-    if (!fs.existsSync(ENV_PATH)) {
-        throw new Error(
-            `.env file not found at ${ENV_PATH}. Copy .env.example and fill in DEPLOYER_MNEMONIC.`,
-        );
-    }
-    const lines = fs.readFileSync(ENV_PATH, 'utf-8').split('\n');
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
-        const eqIdx = trimmed.indexOf('=');
-        if (eqIdx === -1) continue;
-        env[trimmed.slice(0, eqIdx).trim()] = trimmed.slice(eqIdx + 1).trim();
-    }
-    return env;
-}
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -86,83 +70,203 @@ function run(cmd: string, cwd?: string): string {
     }).trim();
 }
 
-function step(n: number, label: string): void {
+function runVisible(cmd: string, cwd?: string): void {
+    console.log(`  $ ${cmd}`);
+    execSync(cmd, { cwd, stdio: 'inherit' });
+}
+
+function step(n: number, total: number, label: string): void {
     console.log(`\n${'═'.repeat(60)}`);
-    console.log(`  STEP ${n}: ${label}`);
+    console.log(`  STEP ${n}/${total}: ${label}`);
     console.log('═'.repeat(60));
+}
+
+function loadEnv(): Record<string, string> {
+    const env: Record<string, string> = {};
+    if (!fs.existsSync(ENV_PATH)) return env;
+    const lines = fs.readFileSync(ENV_PATH, 'utf-8').split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx === -1) continue;
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed.slice(eqIdx + 1).trim();
+        if (val) env[key] = val;
+    }
+    return env;
+}
+
+function saveEnv(entries: Record<string, string>): void {
+    const lines = Object.entries(entries).map(([k, v]) => `${k}=${v}`);
+    fs.writeFileSync(ENV_PATH, lines.join('\n') + '\n', 'utf-8');
+}
+
+function waitForKeypress(message: string): Promise<void> {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+        rl.question(message, () => {
+            rl.close();
+            resolve();
+        });
+    });
+}
+
+function depsInstalled(dir: string): boolean {
+    return fs.existsSync(path.join(dir, 'node_modules', '.package-lock.json'));
 }
 
 // ── Main ──────────────────────────────────────────────────────────
 
+const TOTAL_STEPS = 9;
+
 async function main(): Promise<void> {
-    console.log('\n╔════════════════════════════════════════════════════════════╗');
-    console.log('║     FAUCET CENTRALIZATOR — Full Deployment Pipeline       ║');
-    console.log(`║     Network: ${NETWORK_LABEL.padEnd(45)}║`);
+    console.log('');
+    console.log('╔════════════════════════════════════════════════════════════╗');
+    console.log('║      FAUCET CENTRALIZATOR — Deploy-All Pipeline          ║');
+    console.log(`║      Network: ${NETWORK_LABEL.padEnd(44)}║`);
+    console.log('║                                                          ║');
+    console.log('║  This script automates EVERYTHING. Just sit back.        ║');
+    console.log('║  The only manual step: funding your wallet with rBTC.    ║');
     console.log('╚════════════════════════════════════════════════════════════╝');
 
-    // ── Step 1: Derive wallet ──────────────────────────────────
+    // ── Step 1: Wallet ──────────────────────────────────────────
 
-    step(1, 'Derive deployer wallet');
+    step(1, TOTAL_STEPS, 'Generate or load deployer wallet');
 
     const env = loadEnv();
-    const mnemonicPhrase = env['DEPLOYER_MNEMONIC'];
+    let mnemonicPhrase = env['DEPLOYER_MNEMONIC'];
+
     if (!mnemonicPhrase) {
-        throw new Error('DEPLOYER_MNEMONIC not set in .env');
+        console.log('  No DEPLOYER_MNEMONIC found. Generating a fresh wallet...');
+        const generated = Mnemonic.generate(undefined, undefined, NETWORK, MLDSASecurityLevel.LEVEL2);
+        mnemonicPhrase = generated.phrase;
+        saveEnv({ ...env, DEPLOYER_MNEMONIC: mnemonicPhrase });
+        console.log('  New mnemonic generated and saved to .env');
+        console.log('');
+        console.log('  ┌─────────────────────────────────────────────────────────┐');
+        console.log('  │  IMPORTANT: Back up your .env file!                     │');
+        console.log('  │  It contains your deployer wallet mnemonic.             │');
+        console.log('  │  .env is gitignored and will NOT be pushed.             │');
+        console.log('  └─────────────────────────────────────────────────────────┘');
+    } else {
+        console.log('  Found existing DEPLOYER_MNEMONIC in .env');
     }
 
     const mnemonic = new Mnemonic(mnemonicPhrase, '', NETWORK, MLDSASecurityLevel.LEVEL2);
     const wallet = mnemonic.derive(0);
 
+    console.log('');
     console.log(`  P2TR address : ${wallet.p2tr}`);
     console.log(`  OPNet address: ${wallet.address.toHex()}`);
 
-    // ── Step 2: Check WASM ─────────────────────────────────────
+    // ── Step 2: Install all dependencies ────────────────────────
 
-    step(2, 'Verify contract WASM');
+    step(2, TOTAL_STEPS, 'Install dependencies');
+
+    if (depsInstalled(CONTRACT_DIR)) {
+        console.log('  contract/   — already installed, skipping');
+    } else {
+        console.log('  contract/   — installing...');
+        runVisible('npm install', CONTRACT_DIR);
+    }
+
+    if (depsInstalled(FRONTEND_DIR)) {
+        console.log('  frontend/   — already installed, skipping');
+    } else {
+        console.log('  frontend/   — installing...');
+        runVisible('npm install', FRONTEND_DIR);
+    }
+
+    if (depsInstalled(SCRIPTS_DIR)) {
+        console.log('  scripts/    — already installed, skipping');
+    } else {
+        console.log('  scripts/    — installing...');
+        runVisible('npm install', SCRIPTS_DIR);
+    }
+
+    console.log('  All dependencies ready.');
+
+    // ── Step 3: Build contract WASM ─────────────────────────────
+
+    step(3, TOTAL_STEPS, 'Build smart contract');
+
+    if (fs.existsSync(WASM_PATH)) {
+        const stats = fs.statSync(WASM_PATH);
+        console.log(`  WASM already exists (${(stats.size / 1024).toFixed(1)} KB), rebuilding anyway...`);
+    }
+
+    runVisible('npm run build', CONTRACT_DIR);
 
     if (!fs.existsSync(WASM_PATH)) {
-        console.log('  WASM not found. Building contract...');
-        run('npm run build', path.resolve(ROOT, 'contract'));
+        throw new Error(`Contract build failed — WASM not found at ${WASM_PATH}`);
     }
 
     const bytecode = new Uint8Array(fs.readFileSync(WASM_PATH));
-    console.log(`  Bytecode ready: ${bytecode.length} bytes`);
+    console.log(`  Contract compiled: ${(bytecode.length / 1024).toFixed(1)} KB`);
 
-    // ── Step 3: Wait for funding ───────────────────────────────
+    // ── Step 4: Fund the wallet ─────────────────────────────────
 
-    step(3, `Fund the deployer wallet with ${CURRENCY}`);
-
-    console.log('');
-    console.log('  ┌──────────────────────────────────────────────────────┐');
-    console.log(`  │  Send ${CURRENCY} to:                                       │`);
-    console.log(`  │  ${wallet.p2tr}  │`);
-    console.log('  └──────────────────────────────────────────────────────┘');
-    console.log('');
-    console.log(`  Waiting for UTXOs (polling every ${POLL_INTERVAL_MS / 1000}s, max ${MAX_POLL_MS / 60_000} min)...`);
+    step(4, TOTAL_STEPS, `Fund deployer wallet with ${CURRENCY}`);
 
     const provider = new JSONRpcProvider({ url: RPC_URL, network: NETWORK });
-    const startTime = Date.now();
+
+    // Check if already funded
     let utxos = await provider.utxoManager.getUTXOs({ address: wallet.p2tr });
 
-    while (utxos.length === 0) {
-        const elapsed = Date.now() - startTime;
-        if (elapsed >= MAX_POLL_MS) {
-            throw new Error(
-                `Timeout: no UTXOs found after ${MAX_POLL_MS / 60_000} minutes. ` +
-                    `Fund ${wallet.p2tr} and re-run the script.`,
-            );
-        }
-        const remaining = Math.ceil((MAX_POLL_MS - elapsed) / 1000);
-        process.stdout.write(`\r  Checking... (${remaining}s remaining)  `);
-        await sleep(POLL_INTERVAL_MS);
+    if (utxos.length > 0) {
+        console.log(`  Already funded! Found ${utxos.length} UTXO(s). Skipping.`);
+    } else {
+        console.log('');
+        console.log('  ╔═══════════════════════════════════════════════════════╗');
+        console.log('  ║              MANUAL STEP REQUIRED                    ║');
+        console.log('  ╠═══════════════════════════════════════════════════════╣');
+        console.log('  ║                                                     ║');
+        console.log(`  ║  1. Open: ${FAUCET_URL.padEnd(39)}║`);
+        console.log('  ║                                                     ║');
+        console.log('  ║  2. Paste this address:                             ║');
+        console.log(`  ║     ${wallet.p2tr}║`);
+        console.log('  ║                                                     ║');
+        console.log(`  ║  3. Request ${CURRENCY.padEnd(41)}║`);
+        console.log('  ║                                                     ║');
+        console.log('  ╚═══════════════════════════════════════════════════════╝');
+        console.log('');
+
+        await waitForKeypress('  Press ENTER after you\'ve requested funds (the script will poll)...');
+
+        console.log('');
+        console.log(`  Polling for UTXOs (every ${POLL_INTERVAL_MS / 1000}s, max ${MAX_POLL_MS / 60_000} min)...`);
+
+        const startTime = Date.now();
         utxos = await provider.utxoManager.getUTXOs({ address: wallet.p2tr });
+
+        while (utxos.length === 0) {
+            const elapsed = Date.now() - startTime;
+            if (elapsed >= MAX_POLL_MS) {
+                throw new Error(
+                    `Timeout: no UTXOs after ${MAX_POLL_MS / 60_000} min. ` +
+                    `Fund ${wallet.p2tr} and re-run.`,
+                );
+            }
+            const remaining = Math.ceil((MAX_POLL_MS - elapsed) / 1000);
+            const mins = Math.floor(remaining / 60);
+            const secs = remaining % 60;
+            process.stdout.write(
+                `\r  Waiting for on-chain confirmation... ${mins}m ${secs.toString().padStart(2, '0')}s remaining  `,
+            );
+            await sleep(POLL_INTERVAL_MS);
+            utxos = await provider.utxoManager.getUTXOs({ address: wallet.p2tr });
+        }
+
+        console.log(`\n  Funded! Found ${utxos.length} UTXO(s)`);
     }
 
-    console.log(`\n  Funded! Found ${utxos.length} UTXO(s)`);
+    // ── Step 5: Deploy contract ─────────────────────────────────
 
-    // ── Step 4: Deploy contract ────────────────────────────────
-
-    step(4, 'Deploy FaucetManager contract');
+    step(5, TOTAL_STEPS, 'Deploy FaucetManager contract');
 
     const challenge = await provider.getChallenge();
     const factory = new TransactionFactory();
@@ -199,13 +303,14 @@ async function main(): Promise<void> {
     mnemonic.zeroize();
     wallet.zeroize();
 
-    // ── Step 5: Update frontend contract address ───────────────
+    // ── Step 6: Update frontend config ──────────────────────────
 
-    step(5, 'Update frontend contract address');
+    step(6, TOTAL_STEPS, 'Update frontend contract address');
 
     const contractsTsContent = [
         '/**',
         ` * FaucetManager contract address on ${NETWORK_LABEL}.`,
+        ` * Auto-generated by deploy script — do not edit manually.`,
         ' */',
         `export const FAUCET_MANAGER_ADDRESS =`,
         `    '${contractAddress}';`,
@@ -213,70 +318,107 @@ async function main(): Promise<void> {
     ].join('\n');
 
     fs.writeFileSync(CONTRACTS_TS, contractsTsContent, 'utf-8');
-    console.log(`  Updated ${CONTRACTS_TS}`);
+    console.log(`  Updated: frontend/src/config/contracts.ts`);
     console.log(`  Address: ${contractAddress}`);
 
-    // ── Step 6: Build frontend ─────────────────────────────────
+    // ── Step 7: Build frontend ──────────────────────────────────
 
-    step(6, 'Build frontend');
+    step(7, TOTAL_STEPS, 'Build frontend');
 
-    run('npm run build', FRONTEND_DIR);
-    console.log('  Frontend built successfully');
+    runVisible('npm run build', FRONTEND_DIR);
+    console.log('  Frontend built successfully.');
 
-    // ── Step 7: Deploy to Vercel ───────────────────────────────
+    // ── Step 8: Deploy to Vercel ────────────────────────────────
 
-    step(7, 'Deploy to Vercel');
+    step(8, TOTAL_STEPS, 'Deploy to Vercel');
 
-    let vercelUrl: string;
+    let vercelUrl = '<not deployed>';
+
+    // Check if Vercel CLI is available
+    let hasVercel = false;
     try {
-        // Try production deploy first
-        vercelUrl = run('npx vercel --prod --yes 2>&1', FRONTEND_DIR);
+        run('npx vercel --version');
+        hasVercel = true;
     } catch {
-        console.log('  Production deploy failed. Trying preview deploy...');
-        console.log('  (You may need to run "npx vercel link" first)');
-        try {
-            vercelUrl = run('npx vercel --yes 2>&1', FRONTEND_DIR);
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            console.log(`\n  Vercel deploy failed: ${msg}`);
-            console.log('  You can deploy manually:');
-            console.log(`    cd ${FRONTEND_DIR} && npx vercel --prod`);
-            vercelUrl = '<deploy manually>';
+        console.log('  Vercel CLI not found. Skipping Vercel deployment.');
+        console.log('  To deploy manually later:');
+        console.log(`    cd frontend && npx vercel --prod`);
+    }
+
+    if (hasVercel) {
+        // Check if linked
+        const vercelDir = path.join(FRONTEND_DIR, '.vercel');
+        if (!fs.existsSync(vercelDir)) {
+            console.log('  Vercel project not linked. Running vercel link...');
+            console.log('  (Follow the prompts to link your Vercel account)');
+            console.log('');
+            try {
+                execSync('npx vercel link', {
+                    cwd: FRONTEND_DIR,
+                    stdio: 'inherit',
+                });
+            } catch {
+                console.log('  Vercel link failed. Skipping Vercel deployment.');
+                console.log('  To deploy manually later:');
+                console.log(`    cd frontend && npx vercel link && npx vercel --prod`);
+                hasVercel = false;
+            }
         }
     }
 
-    // Extract URL from vercel output (last line is usually the URL)
-    const urlMatch = vercelUrl.match(/https:\/\/[^\s]+/);
-    const finalUrl = urlMatch ? urlMatch[0] : vercelUrl;
+    if (hasVercel) {
+        try {
+            console.log('  Deploying to production...');
+            const output = run('npx vercel --prod --yes 2>&1', FRONTEND_DIR);
+            const urlMatch = output.match(/https:\/\/[^\s]+/);
+            vercelUrl = urlMatch ? urlMatch[0] : output;
+        } catch {
+            console.log('  Production deploy failed. Trying preview...');
+            try {
+                const output = run('npx vercel --yes 2>&1', FRONTEND_DIR);
+                const urlMatch = output.match(/https:\/\/[^\s]+/);
+                vercelUrl = urlMatch ? urlMatch[0] : output;
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                console.log(`  Vercel deploy failed: ${msg}`);
+                console.log('  Deploy manually:');
+                console.log(`    cd frontend && npx vercel --prod`);
+            }
+        }
+    }
 
-    // ── Done ───────────────────────────────────────────────────
+    // ── Step 9: Git commit + push ───────────────────────────────
 
-    console.log('\n╔════════════════════════════════════════════════════════════╗');
-    console.log('║                  DEPLOYMENT COMPLETE                       ║');
-    console.log('╠════════════════════════════════════════════════════════════╣');
-    console.log(`║  Network:  ${NETWORK_LABEL.padEnd(47)}║`);
-    console.log(`║  Contract: ${contractAddress.slice(0, 46)}...║`);
-    console.log(`║  Frontend: ${finalUrl.slice(0, 47).padEnd(47)}║`);
-    console.log('╚════════════════════════════════════════════════════════════╝');
-    console.log('');
+    step(9, TOTAL_STEPS, 'Commit & push contract address');
 
-    // Also commit the contract address update + push
     try {
         run('git add frontend/src/config/contracts.ts', ROOT);
         run(
-            `git commit -m "feat: set deployed contract address (${NETWORK_LABEL})"`,
+            `git commit -m "deploy: set FaucetManager contract address (${NETWORK_LABEL})"`,
             ROOT,
         );
         run('git push', ROOT);
-        console.log('  Contract address committed and pushed to GitHub.');
+        console.log('  Contract address committed and pushed.');
     } catch {
-        console.log('  (Could not auto-commit — commit the contract address manually)');
+        console.log('  (Could not auto-commit — commit manually if desired)');
     }
 
-    console.log('\nDone!');
+    // ── Summary ─────────────────────────────────────────────────
+
+    console.log('');
+    console.log('╔════════════════════════════════════════════════════════════╗');
+    console.log('║               DEPLOYMENT COMPLETE!                        ║');
+    console.log('╠════════════════════════════════════════════════════════════╣');
+    console.log(`║  Network:   ${NETWORK_LABEL.padEnd(46)}║`);
+    console.log(`║  Contract:  ${String(contractAddress).slice(0, 45).padEnd(46)}║`);
+    console.log(`║  Frontend:  ${vercelUrl.slice(0, 45).padEnd(46)}║`);
+    console.log('╠════════════════════════════════════════════════════════════╣');
+    console.log('║  Your faucet is LIVE! Share the link and have fun.       ║');
+    console.log('╚════════════════════════════════════════════════════════════╝');
+    console.log('');
 }
 
 main().catch((err) => {
-    console.error('\nDeployment failed:', err);
+    console.error('\n  Deployment failed:', err);
     process.exit(1);
 });

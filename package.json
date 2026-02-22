@@ -1,0 +1,13 @@
+{
+    "name": "faucet-centralizator",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Decentralized OP20 token faucet platform on OPNet (Bitcoin L1)",
+    "scripts": {
+        "deploy": "cd scripts && npm install && node --import tsx/esm deploy.ts",
+        "deploy:mainnet": "cd scripts && npm install && node --import tsx/esm deploy.ts --mainnet",
+        "dev": "cd frontend && npm run dev",
+        "build:contract": "cd contract && npm run build",
+        "build:frontend": "cd frontend && npm run build"
+    }
+}

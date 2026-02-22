@@ -8,3 +8,4 @@ build/
 *.wasm
 *.wat
 *.map
+frontend/src/**/*.js
