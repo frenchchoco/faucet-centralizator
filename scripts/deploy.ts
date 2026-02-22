@@ -272,7 +272,7 @@ async function main(): Promise<void> {
     const factory = new TransactionFactory();
 
     const deploymentParams: IDeploymentParameters = {
-        from: wallet.p2tr,
+        from: wallet.address.toHex(),
         utxos,
         signer: wallet.keypair,
         mldsaSigner: wallet.mldsaKeypair,
