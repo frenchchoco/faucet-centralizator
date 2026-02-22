@@ -26,7 +26,7 @@
         "initialMemory": 1,
         "exportStart": "start",
         "use": [
-            "abort=index/abort"
+            "abort=src/index/abort"
         ]
     }
 }
