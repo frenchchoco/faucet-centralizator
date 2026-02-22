@@ -1,0 +1,22 @@
+{
+    "name": "free-faucet-contract",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "build": "asc src/index.ts --config asconfig.json --target debug",
+        "lint": "eslint src",
+        "clean": "rm -rf build/*"
+    },
+    "dependencies": {
+        "@assemblyscript/loader": "^0.28.9",
+        "@btc-vision/as-bignum": "^0.1.2",
+        "@btc-vision/assemblyscript": "^0.29.2",
+        "@btc-vision/btc-runtime": "^1.11.0-rc.7",
+        "@btc-vision/opnet-transform": "^1.2.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "eslint": "^10.0.1",
+        "typescript-eslint": "^8.56.0"
+    }
+}
