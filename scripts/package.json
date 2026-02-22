@@ -1,0 +1,22 @@
+{
+    "name": "faucet-deploy-scripts",
+    "version": "1.0.0",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "deploy": "tsx deploy.ts"
+    },
+    "dependencies": {
+        "@btc-vision/bitcoin": "^7.0.0-rc.5",
+        "@btc-vision/transaction": "^1.8.0-rc.5",
+        "@noble/hashes": "2.0.1",
+        "opnet": "^1.8.1-rc.8"
+    },
+    "overrides": {
+        "@noble/hashes": "2.0.1"
+    },
+    "devDependencies": {
+        "tsx": "latest",
+        "typescript": "latest"
+    }
+}

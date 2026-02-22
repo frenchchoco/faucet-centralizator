@@ -8,14 +8,41 @@ import { CURRENT_NETWORK } from '../config/networks.js';
 import { getProvider } from '../services/ProviderService.js';
 
 interface UseClaimReturn {
-    claim: (faucetId: number) => Promise<boolean>;
+    claim: (faucetId: number, cooldownSeconds: bigint) => Promise<boolean>;
     loading: boolean;
     error: string | null;
     txId: string | null;
 }
 
 /**
- * Handles the claim flow: simulate then sendTransaction with signer:null.
+ * Verify IP-based rate limit via Vercel Edge Function.
+ * In dev mode (localhost) this is skipped.
+ */
+async function verifyIpRateLimit(faucetId: number, cooldownSeconds: bigint): Promise<void> {
+    if (window.location.hostname === 'localhost') return;
+
+    const res = await fetch('/api/verify-claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            faucetId: String(faucetId),
+            cooldownSeconds: Number(cooldownSeconds),
+        }),
+    });
+
+    if (res.status === 429) {
+        const data = (await res.json()) as { remainingSeconds: number };
+        const mins = Math.ceil(data.remainingSeconds / 60);
+        throw new Error(`IP rate limited. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`);
+    }
+
+    if (!res.ok) {
+        throw new Error('Anti-sybil check failed');
+    }
+}
+
+/**
+ * Handles the claim flow: IP check → simulate → sendTransaction with signer:null.
  */
 export function useClaim(walletAddress: string | null): UseClaimReturn {
     const [loading, setLoading] = useState(false);
@@ -23,7 +50,7 @@ export function useClaim(walletAddress: string | null): UseClaimReturn {
     const [txId, setTxId] = useState<string | null>(null);
 
     const claimFaucet = useCallback(
-        async (faucetId: number): Promise<boolean> => {
+        async (faucetId: number, cooldownSeconds: bigint): Promise<boolean> => {
             if (!walletAddress) {
                 setError('Wallet not connected');
                 return false;
@@ -34,6 +61,9 @@ export function useClaim(walletAddress: string | null): UseClaimReturn {
             setTxId(null);
 
             try {
+                // Step 0: Anti-sybil IP check
+                await verifyIpRateLimit(faucetId, cooldownSeconds);
+
                 const provider = getProvider();
                 const contract = getContract<IFaucetManagerContract>(
                     FAUCET_MANAGER_ADDRESS,

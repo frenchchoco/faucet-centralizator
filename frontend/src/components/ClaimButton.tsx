@@ -41,7 +41,7 @@ export function ClaimButton({
     }, [cooldownRemaining]);
 
     const handleClaim = async (): Promise<void> => {
-        const success = await claim(faucetId);
+        const success = await claim(faucetId, cooldownSeconds);
         if (success) {
             // Set cooldown based on the faucet's cooldown period
             setCooldownRemaining(Number(cooldownSeconds));

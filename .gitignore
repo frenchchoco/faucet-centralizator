@@ -4,6 +4,7 @@ build/
 .env
 .env.local
 .vercel/
+.claude/
 *.wasm
 *.wat
 *.map
