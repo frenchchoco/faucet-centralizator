@@ -88,30 +88,38 @@ npm install
 npm run dev
 ```
 
-### Deploy the Contract
+### Deploy Everything (Contract + Vercel)
+
+The deploy script handles the full pipeline: wallet derivation, funding check, contract deployment, frontend config update, build, and Vercel deploy.
 
 1. Copy `.env.example` to `.env` and add your deployer mnemonic:
    ```
    DEPLOYER_MNEMONIC=your 24 word mnemonic phrase here
    ```
 
-2. Build the contract first (see above)
+2. Link Vercel to your project (one-time):
+   ```bash
+   cd frontend && npx vercel link
+   ```
 
-3. Run the deploy script:
+3. Create a Vercel KV store in the dashboard and link it (for anti-sybil)
+
+4. Run the full deploy:
    ```bash
    cd scripts
    npm install
-   npm run deploy
+   npm run deploy                  # regtest (default)
+   npm run deploy -- --mainnet     # mainnet
    ```
 
-4. Update `frontend/src/config/contracts.ts` with the deployed contract address
-
-### Deploy to Vercel
-
-1. Push to GitHub
-2. Import in Vercel, set root directory to `frontend/`
-3. Create a Vercel KV store and link it to the project
-4. Deploy
+The script will:
+- Show your deployer P2TR address and wait for you to fund it
+- Poll for UTXOs (10 min max on regtest, 30 min on mainnet)
+- Deploy the contract and print the address
+- Update `frontend/src/config/contracts.ts` automatically
+- Build the frontend and deploy to Vercel
+- Commit + push the contract address to GitHub
+- Print the final live URL
 
 ## Tech Stack
 
