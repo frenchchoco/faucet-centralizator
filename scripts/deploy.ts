@@ -353,7 +353,7 @@ async function main(): Promise<void> {
             console.log('  (Follow the prompts to link your Vercel account)');
             console.log('');
             try {
-                execSync('npx vercel link', {
+                execSync('npx vercel link --yes', {
                     cwd: FRONTEND_DIR,
                     stdio: 'inherit',
                 });
