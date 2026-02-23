@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type React from 'react';
 import { Link } from 'react-router-dom';
 import { useFaucets } from '../hooks/useFaucets.js';
@@ -32,7 +32,12 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 
 /* ── Main component ──────────────────────────────────────── */
 export function FaucetGrid(): React.JSX.Element {
-    const { faucets, loading, error, refetch } = useFaucets();
+    const { faucets, loading, error, refetch, silentRefetch } = useFaucets();
+
+    /** Delayed silent refetch — waits for particles to finish (~2.5s) */
+    const delayedRefetch = useCallback(() => {
+        setTimeout(silentRefetch, 2500);
+    }, [silentRefetch]);
 
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [tokenFilter, setTokenFilter] = useState<string>('all');
@@ -156,7 +161,7 @@ export function FaucetGrid(): React.JSX.Element {
             ) : error ? (
                 <div className="error-state">
                     <p>Error: {error}</p>
-                    <button className="btn" onClick={refetch}>Retry</button>
+                    <button className="btn" onClick={() => void refetch()}>Retry</button>
                 </div>
             ) : faucets.length === 0 ? (
                 <div className="empty-state">
@@ -175,7 +180,7 @@ export function FaucetGrid(): React.JSX.Element {
                 </div>
             ) : (
                 <div className="faucet-grid">
-                    {filtered.map((f) => <FaucetCard key={f.id} faucet={f} onClaimed={refetch} />)}
+                    {filtered.map((f) => <FaucetCard key={f.id} faucet={f} onClaimed={delayedRefetch} />)}
                 </div>
             )}
         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getContract } from 'opnet';
 import type { Address } from '@btc-vision/transaction';
 import { FAUCET_MANAGER_ABI } from '../abi/FaucetManagerABI.js';
@@ -28,9 +28,11 @@ export function useFaucets() {
     const [faucets, setFaucets] = useState<FaucetData[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const initialLoadDone = useRef(false);
 
-    const fetchFaucets = useCallback(async () => {
-        setLoading(true);
+    const fetchFaucets = useCallback(async (silent = false) => {
+        // Only show skeletons on initial load, not on refetch
+        if (!silent) setLoading(true);
         setError(null);
         try {
             const contract = getManagerContract();
@@ -47,12 +49,18 @@ export function useFaucets() {
             setError(err instanceof Error ? err.message : 'Failed to fetch faucets');
         } finally {
             setLoading(false);
+            initialLoadDone.current = true;
         }
     }, []);
 
+    /** Silent refetch — updates data without showing skeletons */
+    const silentRefetch = useCallback(() => {
+        void fetchFaucets(true);
+    }, [fetchFaucets]);
+
     useEffect(() => { void fetchFaucets(); }, [fetchFaucets]);
 
-    return { faucets, loading, error, refetch: fetchFaucets };
+    return { faucets, loading, error, refetch: fetchFaucets, silentRefetch };
 }
 
 export function useFaucet(faucetId: number | null) {
