@@ -29,3 +29,19 @@ export function formatTime(seconds: number): string {
     const s = seconds % 60;
     return h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
+
+const REVERT_MAP: [RegExp, string][] = [
+    [/One-shot faucet: already claimed/i, 'Already claimed — this faucet allows one claim per wallet.'],
+    [/Cooldown period has not elapsed/i, 'Cooldown active — try again later.'],
+    [/Faucet has insufficient remaining balance/i, 'This faucet is empty.'],
+    [/Faucet is not active/i, 'This faucet has been depleted.'],
+    [/Faucet does not exist/i, 'Faucet not found.'],
+    [/Simulation reverted/i, ''],
+];
+
+export function humanizeError(raw: string): string {
+    for (const [re, msg] of REVERT_MAP) {
+        if (re.test(raw)) return msg || raw.replace(/^Simulation reverted:\s*/i, '');
+    }
+    return raw;
+}

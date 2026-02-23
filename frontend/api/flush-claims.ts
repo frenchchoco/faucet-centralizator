@@ -8,13 +8,12 @@ export default async function handler(request: Request): Promise<Response> {
     }
 
     const keys: string[] = [];
-    let cursor = 0 as number | string;
-    let scanResult: [string, string[]];
+    let cursor: string | number = 0;
     do {
-        scanResult = (await kv.scan(cursor, { match: 'claim:*', count: 100 })) as [string, string[]];
+        const scanResult = (await kv.scan(cursor, { match: 'claim:*', count: 100 })) as [string, string[]];
         cursor = scanResult[0];
         keys.push(...scanResult[1]);
-    } while (cursor !== '0' && cursor !== 0);
+    } while (String(cursor) !== '0');
 
     if (keys.length > 0) await kv.del(...keys);
 

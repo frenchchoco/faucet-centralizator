@@ -11,7 +11,8 @@ export function FaucetCard({ faucet, onClaimed }: { faucet: FaucetData; onClaime
     const progress = faucet.totalDeposited > 0n ? Number((faucet.remainingBalance * 100n) / faucet.totalDeposited) : 0;
 
     return (
-        <div className="faucet-card">
+        <div className={`faucet-card${faucet.active ? '' : ' faucet-card-depleted'}`}>
+            {!faucet.active && <div className="depleted-overlay"><span className="depleted-label">DEPLETED</span></div>}
             <Link to={`/faucet/${faucet.id}`} className="faucet-card-link">
                 <div className="faucet-card-header">
                     <h3 className="faucet-token-name">
