@@ -6,6 +6,7 @@ import { FaucetGrid } from './components/FaucetGrid.js';
 import { CreateFaucetForm } from './components/CreateFaucetForm.js';
 import { FaucetDetail } from './components/FaucetDetail.js';
 import { ToastProvider } from './components/Toast.js';
+import { CanvasOverlay } from './components/CanvasOverlay.js';
 
 export function App(): React.JSX.Element {
     return (
@@ -25,6 +26,7 @@ export function App(): React.JSX.Element {
                         <a href="https://github.com/frenchchoco/faucet-centralizator" target="_blank" rel="noopener">GitHub</a>
                     </footer>
                 </BrowserRouter>
+                <CanvasOverlay />
             </ToastProvider>
         </WalletConnectProvider>
     );
