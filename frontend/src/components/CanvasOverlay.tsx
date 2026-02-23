@@ -32,12 +32,12 @@ function createDrop(x: number, h: number): Drop {
     };
 }
 
-function renderRain(canvas: HTMLCanvasElement, drops: Drop[], startTime: number): boolean {
+function renderRain(canvas: HTMLCanvasElement, drops: Drop[], startTime: number, cssW: number, cssH: number): boolean {
     const ctx = canvas.getContext('2d');
     if (!ctx) return false;
 
-    const W = canvas.width;
-    const H = canvas.height;
+    const W = cssW;
+    const H = cssH;
     const elapsed = Date.now() - startTime;
     const DURATION = 6000;
     const fadeIn = Math.min(1, elapsed / 600);
@@ -175,7 +175,7 @@ export function CanvasOverlay(): React.JSX.Element | null {
         let animId: number;
         function loop() {
             if (!canvas) return;
-            const running = renderRain(canvas, dropsRef.current, startRef.current);
+            const running = renderRain(canvas, dropsRef.current, startRef.current, W, H);
             if (running) {
                 animId = requestAnimationFrame(loop);
             } else {
