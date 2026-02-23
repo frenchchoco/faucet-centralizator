@@ -131,11 +131,10 @@ export function CanvasOverlay(): React.JSX.Element | null {
     const dropsRef = useRef<Drop[]>([]);
     const startRef = useRef(0);
 
-    /* Listen for Konami Code */
+    /* Keyboard sequence */
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         const buf = bufferRef.current;
         buf.push(e.key.toLowerCase());
-        // Keep buffer same length as code
         if (buf.length > SEQ.length) buf.shift();
 
         if (buf.length === SEQ.length && buf.every((k, i) => k === SEQ[i])) {
@@ -148,6 +147,33 @@ export function CanvasOverlay(): React.JSX.Element | null {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleKeyDown]);
+
+    /* Mobile: 5 rapid taps on the logo */
+    const tapTimesRef = useRef<number[]>([]);
+    useEffect(() => {
+        const TAP_COUNT = 5;
+        const TAP_WINDOW = 2000; // ms
+
+        function handleTap(e: Event) {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.header-logo')) return;
+
+            const now = Date.now();
+            const taps = tapTimesRef.current;
+            taps.push(now);
+
+            // Keep only taps within the window
+            while (taps.length > 0 && now - taps[0] > TAP_WINDOW) taps.shift();
+
+            if (taps.length >= TAP_COUNT) {
+                taps.length = 0;
+                setActive(true);
+            }
+        }
+
+        window.addEventListener('click', handleTap);
+        return () => window.removeEventListener('click', handleTap);
+    }, []);
 
     /* Run animation */
     useEffect(() => {
