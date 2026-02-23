@@ -36,18 +36,23 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
         }
     };
 
-    if (!walletAddress) return <button className="btn btn-claim disabled" disabled>Connect Wallet to Claim</button>;
-    if (!active) return <button className="btn btn-claim disabled" disabled>Faucet Depleted</button>;
-    if (claimed && isOneShot) return <button className="btn btn-claim disabled" disabled>Claimed ✓</button>;
-    if (cooldownRemaining > 0) return <button className="btn btn-claim cooldown" disabled>Cooldown: {formatTime(cooldownRemaining)}</button>;
+    const disabled = !walletAddress || !active || loading || (claimed && isOneShot) || cooldownRemaining > 0;
+
+    let label = 'Claim';
+    if (!walletAddress) label = 'Connect Wallet to Claim';
+    else if (!active) label = 'Faucet Depleted';
+    else if (loading) label = 'Claiming...';
+    else if (claimed && isOneShot) label = 'Claimed ✓';
+    else if (cooldownRemaining > 0) label = `Cooldown: ${formatTime(cooldownRemaining)}`;
 
     return (
         <div className="claim-wrapper">
-            <button className="btn btn-claim" disabled={loading} onClick={() => void handleClaim()}>
-                {loading ? 'Claiming...' : 'Claim'}
+            <button className="btn btn-claim" disabled={disabled} onClick={() => void handleClaim()}>
+                {label}
             </button>
+            {loading && <p className="claim-status">Transaction in progress — check your wallet...</p>}
             {error && <p className="claim-error">{error}</p>}
-            {txId && <p className="claim-success">TX: {txId.slice(0, 12)}...</p>}
+            {txId && <p className="claim-success">Claimed! TX: {txId.slice(0, 16)}...</p>}
         </div>
     );
 }
