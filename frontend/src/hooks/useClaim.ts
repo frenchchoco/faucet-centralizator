@@ -44,14 +44,17 @@ async function verifyIpRateLimit(faucetId: number, cooldownSeconds: bigint): Pro
 /**
  * Handles the claim flow: IP check → simulate → sendTransaction with signer:null.
  */
-export function useClaim(walletAddress: string | null): UseClaimReturn {
+export function useClaim(
+    walletAddress: string | null,
+    publicKey: string | null,
+): UseClaimReturn {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [txId, setTxId] = useState<string | null>(null);
 
     const claimFaucet = useCallback(
         async (faucetId: number, cooldownSeconds: bigint): Promise<boolean> => {
-            if (!walletAddress) {
+            if (!walletAddress || !publicKey) {
                 setError('Wallet not connected');
                 return false;
             }
@@ -84,7 +87,7 @@ export function useClaim(walletAddress: string | null): UseClaimReturn {
                 const txParams: TransactionParameters = {
                     signer: null,
                     mldsaSigner: null,
-                    refundTo: walletAddress,
+                    refundTo: publicKey,
                     maximumAllowedSatToSpend: 100_000n,
                     feeRate: 10,
                     network: CURRENT_NETWORK,
@@ -101,7 +104,7 @@ export function useClaim(walletAddress: string | null): UseClaimReturn {
                 setLoading(false);
             }
         },
-        [walletAddress],
+        [walletAddress, publicKey],
     );
 
     return { claim: claimFaucet, loading, error, txId };

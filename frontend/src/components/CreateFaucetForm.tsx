@@ -38,7 +38,7 @@ function parseAmount(value: string, decimals: number): bigint {
 }
 
 export function CreateFaucetForm(): React.JSX.Element {
-    const { walletAddress } = useWalletConnect();
+    const { walletAddress, publicKey } = useWalletConnect();
 
     const [tokenAddress, setTokenAddress] = useState('');
     const [totalAmount, setTotalAmount] = useState('');
@@ -56,14 +56,14 @@ export function CreateFaucetForm(): React.JSX.Element {
     const buildTxParams = (): TransactionParameters => ({
         signer: null,
         mldsaSigner: null,
-        refundTo: walletAddress!,
+        refundTo: publicKey!,
         maximumAllowedSatToSpend: 100_000n,
         feeRate: 10,
         network: CURRENT_NETWORK,
     });
 
     const handleApprove = async (): Promise<void> => {
-        if (!walletAddress) {
+        if (!walletAddress || !publicKey) {
             setError('Connect your wallet first');
             return;
         }
@@ -115,7 +115,7 @@ export function CreateFaucetForm(): React.JSX.Element {
     };
 
     const handleCreateFaucet = async (): Promise<void> => {
-        if (!walletAddress) {
+        if (!walletAddress || !publicKey) {
             setError('Connect your wallet first');
             return;
         }
