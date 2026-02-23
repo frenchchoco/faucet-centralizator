@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getContract, OP_20_ABI } from 'opnet';
 import type { IOP20Contract, TransactionParameters } from 'opnet';
 import { useWalletConnect } from '@btc-vision/walletconnect';
@@ -19,6 +19,9 @@ const COOLDOWN_OPTIONS = [
     { value: 3, label: '12 Hours (43200s)' },
     { value: 4, label: 'Daily (86400s)' },
 ];
+
+const POLL_INTERVAL_MS = 15_000;
+const MAX_POLL_MS = 15 * 60_000; // 15 min max wait
 
 function parseAmount(value: string, decimals: number): bigint {
     if (!value || value === '0') return 0n;
@@ -45,13 +48,26 @@ export function CreateFaucetForm(): React.JSX.Element {
     const [amountPerClaim, setAmountPerClaim] = useState('');
     const [cooldownType, setCooldownType] = useState(4); // default Daily
 
-    const [step, setStep] = useState<'approve' | 'create'>('approve');
+    const [step, setStep] = useState<'approve' | 'waiting' | 'create'>('approve');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [waitElapsed, setWaitElapsed] = useState(0);
+    const [approveTxId, setApproveTxId] = useState<string | null>(null);
+
+    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const { tokenInfo } = useTokenInfo(tokenAddress || null);
     const decimals = tokenInfo?.decimals ?? 8;
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, []);
 
     const buildTxParams = (): TransactionParameters => ({
         signer: null,
@@ -61,6 +77,71 @@ export function CreateFaucetForm(): React.JSX.Element {
         feeRate: 10,
         network: CURRENT_NETWORK,
     });
+
+    /**
+     * Poll allowance on-chain until it's >= expected amount.
+     */
+    const pollAllowanceConfirmation = (
+        expectedAmount: bigint,
+    ): void => {
+        const startTime = Date.now();
+        setWaitElapsed(0);
+
+        // Tick the elapsed timer every second
+        timerRef.current = setInterval(() => {
+            setWaitElapsed(Math.floor((Date.now() - startTime) / 1000));
+        }, 1_000);
+
+        // Poll allowance every POLL_INTERVAL_MS
+        pollingRef.current = setInterval(async () => {
+            try {
+                const provider = getProvider();
+                const tokenContract = getContract<IOP20Contract>(
+                    tokenAddress,
+                    OP_20_ABI,
+                    provider,
+                    CURRENT_NETWORK,
+                    senderAddress ?? undefined,
+                );
+
+                const faucetManagerAddr: Address = await provider.getPublicKeyInfo(
+                    FAUCET_MANAGER_ADDRESS,
+                    true,
+                );
+
+                const allowanceResult = await tokenContract.allowance(
+                    senderAddress!,
+                    faucetManagerAddr,
+                );
+
+                if (!allowanceResult.revert) {
+                    const currentAllowance = allowanceResult.properties.remaining ?? 0n;
+
+                    if (currentAllowance >= expectedAmount) {
+                        // Confirmed!
+                        if (pollingRef.current) clearInterval(pollingRef.current);
+                        if (timerRef.current) clearInterval(timerRef.current);
+                        setStep('create');
+                        setSuccessMessage(
+                            'Approval confirmed on-chain! You can now create the faucet.',
+                        );
+                    }
+                }
+            } catch {
+                // Silently retry on next poll
+            }
+
+            // Timeout after MAX_POLL_MS
+            if (Date.now() - startTime > MAX_POLL_MS) {
+                if (pollingRef.current) clearInterval(pollingRef.current);
+                if (timerRef.current) clearInterval(timerRef.current);
+                setStep('create');
+                setSuccessMessage(
+                    'Max wait time reached. Try creating the faucet — the approval may be confirmed.',
+                );
+            }
+        }, POLL_INTERVAL_MS);
+    };
 
     const handleApprove = async (): Promise<void> => {
         if (!walletAddress || !publicKey) {
@@ -107,10 +188,16 @@ export function CreateFaucetForm(): React.JSX.Element {
             }
 
             // Send approve transaction
-            await approveResult.sendTransaction(buildTxParams());
+            const receipt = await approveResult.sendTransaction(buildTxParams());
+            const txId = receipt.transactionId;
+            setApproveTxId(txId);
 
-            setSuccessMessage('Approval confirmed! You can now create the faucet.');
-            setStep('create');
+            // Move to waiting state and start polling
+            setStep('waiting');
+            setSuccessMessage(
+                `Approve TX broadcast! Regtest blocks are ~10 min — waiting for confirmation...`,
+            );
+            pollAllowanceConfirmation(rawAmount);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Approval failed';
             setError(message);
@@ -179,12 +266,19 @@ export function CreateFaucetForm(): React.JSX.Element {
             setAmountPerClaim('');
             setCooldownType(4);
             setStep('approve');
+            setApproveTxId(null);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Create faucet failed';
             setError(message);
         } finally {
             setLoading(false);
         }
+    };
+
+    const formatElapsed = (seconds: number): string => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return m > 0 ? `${m}m ${s}s` : `${s}s`;
     };
 
     return (
@@ -200,9 +294,10 @@ export function CreateFaucetForm(): React.JSX.Element {
                         id="token-address"
                         className="form-input"
                         type="text"
-                        placeholder="0x..."
+                        placeholder="opr1s..."
                         value={tokenAddress}
                         onChange={(e) => setTokenAddress(e.target.value)}
+                        disabled={step !== 'approve'}
                     />
                     <TokenInfo address={tokenAddress || null} />
                 </div>
@@ -218,6 +313,7 @@ export function CreateFaucetForm(): React.JSX.Element {
                         placeholder="e.g. 1000"
                         value={totalAmount}
                         onChange={(e) => setTotalAmount(e.target.value)}
+                        disabled={step !== 'approve'}
                     />
                 </div>
 
@@ -232,6 +328,7 @@ export function CreateFaucetForm(): React.JSX.Element {
                         placeholder="e.g. 10"
                         value={amountPerClaim}
                         onChange={(e) => setAmountPerClaim(e.target.value)}
+                        disabled={step !== 'approve'}
                     />
                 </div>
 
@@ -244,6 +341,7 @@ export function CreateFaucetForm(): React.JSX.Element {
                         className="form-select"
                         value={cooldownType}
                         onChange={(e) => setCooldownType(Number(e.target.value))}
+                        disabled={step !== 'approve'}
                     >
                         {COOLDOWN_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -258,12 +356,14 @@ export function CreateFaucetForm(): React.JSX.Element {
                         <span className={`step ${step === 'approve' ? 'active' : 'done'}`}>
                             Step 1: Approve
                         </span>
-                        <span className={`step ${step === 'create' ? 'active' : ''}`}>
+                        <span
+                            className={`step ${step === 'waiting' ? 'active' : step === 'create' ? 'active' : ''}`}
+                        >
                             Step 2: Create
                         </span>
                     </div>
 
-                    {step === 'approve' ? (
+                    {step === 'approve' && (
                         <button
                             className="btn btn-primary"
                             disabled={loading || !walletAddress}
@@ -271,7 +371,23 @@ export function CreateFaucetForm(): React.JSX.Element {
                         >
                             {loading ? 'Approving...' : 'Approve Token'}
                         </button>
-                    ) : (
+                    )}
+
+                    {step === 'waiting' && (
+                        <div className="waiting-state">
+                            <p className="waiting-text">
+                                Waiting for approval confirmation... ({formatElapsed(waitElapsed)})
+                            </p>
+                            {approveTxId && (
+                                <p className="waiting-txid">
+                                    TX: {approveTxId.slice(0, 16)}...
+                                </p>
+                            )}
+                            <div className="waiting-spinner" />
+                        </div>
+                    )}
+
+                    {step === 'create' && (
                         <button
                             className="btn btn-primary"
                             disabled={loading || !walletAddress}
