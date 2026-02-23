@@ -148,7 +148,7 @@ export function CanvasOverlay(): React.JSX.Element | null {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleKeyDown]);
 
-    /* Mobile: 5 rapid taps on footer */
+    /* Mobile: 5 rapid taps on logo icon */
     const tapTimesRef = useRef<number[]>([]);
     useEffect(() => {
         const TAP_COUNT = 5;
@@ -156,7 +156,8 @@ export function CanvasOverlay(): React.JSX.Element | null {
 
         function handleTap(e: Event) {
             const target = e.target as HTMLElement;
-            if (!target.closest('.site-footer')) return;
+            if (!target.closest('.header-logo-icon')) return;
+            e.preventDefault();
 
             const now = Date.now();
             const taps = tapTimesRef.current;
