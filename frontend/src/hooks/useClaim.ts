@@ -55,18 +55,52 @@ export async function simulateClaim(faucetId: number, sender?: Address): Promise
     }
 }
 
+/* ── Anti-sybil helpers (Vercel Edge + KV) ───────────────── */
+async function verifyClaim(faucetId: number, cooldownSeconds: number): Promise<{ allowed: boolean; remainingSeconds?: number }> {
+    try {
+        const res = await fetch('/api/verify-claim', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ faucetId: String(faucetId), cooldownSeconds }),
+        });
+        return (await res.json()) as { allowed: boolean; remainingSeconds?: number };
+    } catch {
+        // If anti-sybil is unavailable (no KV, local dev), allow claim
+        return { allowed: true };
+    }
+}
+
+async function recordClaim(faucetId: number, cooldownSeconds: number): Promise<void> {
+    try {
+        await fetch('/api/record-claim', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ faucetId: String(faucetId), cooldownSeconds }),
+        });
+    } catch { /* best-effort — claim already succeeded on-chain */ }
+}
+
 /* ── Hook ─────────────────────────────────────────────────── */
 export function useClaim(walletAddress: string | null, senderAddress: Address | null) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [txId, setTxId] = useState<string | null>(null);
 
-    const claim = useCallback(async (faucetId: number): Promise<boolean> => {
+    const claim = useCallback(async (faucetId: number, cooldownSeconds?: number): Promise<boolean> => {
         if (!walletAddress) { setError('Wallet not connected'); return false; }
         setLoading(true);
         setError(null);
         setTxId(null);
         try {
+            // Anti-sybil: check IP rate limit before claiming
+            const cd = cooldownSeconds ?? 0;
+            const check = await verifyClaim(faucetId, cd);
+            if (!check.allowed) {
+                const wait = check.remainingSeconds ? ` (${Math.ceil(check.remainingSeconds / 60)} min remaining)` : '';
+                setError(`Rate limited — try again later${wait}`);
+                return false;
+            }
+
             const contract = getManager(senderAddress ?? undefined);
             const sim = await contract.claim(BigInt(faucetId));
             if (sim.revert) { setError(`Simulation reverted: ${sim.revert}`); return false; }
@@ -75,8 +109,10 @@ export function useClaim(walletAddress: string | null, senderAddress: Address | 
                 maximumAllowedSatToSpend: 100_000n, feeRate: 10, network: CURRENT_NETWORK,
             });
             setTxId(receipt.transactionId);
-            // Persist claim time
+            // Persist claim time locally
             saveClaimTime(faucetId, walletAddress);
+            // Record claim in Vercel KV for IP-based rate limiting
+            void recordClaim(faucetId, cd);
             return true;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Claim failed');

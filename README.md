@@ -2,6 +2,8 @@
 
 Decentralized OP20 token faucet platform on OPNet (Bitcoin Layer 1). Anyone can create a faucet for any OP20 token, and users can claim tokens from a central hub.
 
+**🚀 Live Demo:** [frontend-nine-beige-72.vercel.app](https://frontend-nine-beige-72.vercel.app)
+
 Built for the [vibecode.finance](https://vibecodedotfinance.vercel.app) OPNet dapp contest.
 
 ## Features
@@ -9,7 +11,7 @@ Built for the [vibecode.finance](https://vibecodedotfinance.vercel.app) OPNet da
 - **Create faucets** for any OP20 token by contract address
 - **Configurable cooldowns**: hourly, 6h, 12h, daily, or one-shot
 - **Fully on-chain**: FaucetManager smart contract manages all state
-- **Anti-sybil**: IP-based rate limiting via Vercel Edge Functions + KV
+- **Anti-sybil**: IP-based rate limiting via Vercel Edge Functions + Upstash Redis
 - **No admin keys**: Faucets are irrevocable once created
 - **Approve & deposit** workflow: creator approves token transfer, then creates the faucet
 
@@ -45,7 +47,7 @@ For mainnet: `npm run deploy:mainnet`
 Vercel Frontend (React + Vite + TypeScript)
     |
     ├── Vercel Edge Function (IP rate limiting)
-    │       └── Vercel KV (claim tracking)
+    │       └── Upstash Redis (claim tracking)
     |
     └── OPNet Blockchain (regtest)
             └── FaucetManager Smart Contract
@@ -76,8 +78,7 @@ faucet-centralizator/
 ├── scripts/           # Deploy-all pipeline
 │   └── deploy.ts              # Fully automated deployment script
 ├── package.json       # Root — npm run deploy
-├── .env.example       # Environment template
-└── CLAUDE.md          # AI assistant project rules
+└── .env.example       # Environment template
 ```
 
 ## Smart Contract
@@ -119,8 +120,35 @@ npm run build:frontend
 - **Frontend**: React 19, TypeScript, Vite
 - **Wallet**: @btc-vision/walletconnect v2 (OP_WALLET)
 - **Blockchain SDK**: opnet npm package, @btc-vision/transaction
-- **Anti-Sybil**: Vercel Edge Functions + Vercel KV
+- **Anti-Sybil**: Vercel Edge Functions + Upstash Redis
 - **Deployment**: Vercel (frontend), OPNet regtest (contract)
+
+## Anti-Sybil: Upstash Redis Setup
+
+The faucet uses IP-based rate limiting via Vercel Edge Functions + [Upstash Redis](https://upstash.com) to prevent abuse. Each claim is tracked per IP per faucet.
+
+### Setup
+
+1. Go to your Vercel project dashboard → **Storage** → **Create Store** → pick **Upstash Redis**
+2. Link the store to your project — this auto-injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+3. Redeploy: `npx vercel --prod`
+
+That's it. The Edge Functions (`/api/verify-claim`, `/api/record-claim`) use the Upstash REST API and auto-read these env vars.
+
+### How It Works
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/verify-claim` | POST | Checks if the caller's IP can claim (returns `{ allowed, remainingSeconds }`) |
+| `/api/record-claim` | POST | Records a successful claim for the IP (TTL = cooldown duration) |
+| `/api/flush-claims` | POST | Purges all rate-limit entries (admin) |
+
+The frontend calls `verify-claim` **before** sending the on-chain TX, and `record-claim` **after** success. If Redis is not configured, the check gracefully falls back to allow (no blocking).
+
+### Current Deployment
+
+- **URL**: https://frontend-nine-beige-72.vercel.app
+- **Flush endpoint**: `curl -X POST https://frontend-nine-beige-72.vercel.app/api/flush-claims`
 
 ## Networks
 
@@ -129,18 +157,6 @@ npm run build:frontend
 | `npm run deploy` | **Regtest** (default, contest) | `https://regtest.opnet.org` |
 | `npm run deploy:testnet` | Testnet | `https://testnet.opnet.org` |
 | `npm run deploy:mainnet` | Mainnet | `https://api.opnet.org` |
-
-## Admin: Purge IP Rate-Limit Entries
-
-If users get blocked by the anti-sybil IP check due to stale KV entries (e.g. a failed on-chain claim that was recorded), the **project owner** can flush all entries:
-
-```bash
-curl -X POST https://frontend-nine-beige-72.vercel.app/api/flush-claims
-```
-
-This deletes all `claim:*` keys from Vercel KV. Only needed if something went wrong — normal claims self-expire after the cooldown period.
-
-> **Who runs this?** The project deployer / admin. This endpoint is public for simplicity on regtest. For mainnet, add authentication.
 
 ## License
 

@@ -41,19 +41,28 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
         setChecking(true);
         try {
             const status = await simulateClaim(faucetId, senderAddress);
-            setOnChainStatus(status);
             hasCheckedRef.current = true;
 
-            // If on-chain says ready, clear any estimated timer
-            if (status === 'ready') {
-                setEstimatedRemaining(0);
-            }
+            // localStorage is authoritative — simulation can only EXTEND cooldowns,
+            // never shorten them. This prevents HD-wallet address rotation from
+            // bypassing cooldowns (Blockchain.tx.sender varies between TXs).
+            setOnChainStatus((prev) => {
+                // If localStorage already says one-shot claimed, keep it
+                if (prev === 'already-claimed' && isOneShot) return prev;
+                // If we have a local cooldown timer running, don't let simulation override
+                // (simulation may return 'ready' because the new sender address hasn't claimed)
+                if (status === 'ready' && prev === 'cooldown') return prev;
+                return status;
+            });
+
+            // Only clear timer if simulation says cooldown/depleted (extending restriction)
+            // NEVER clear the timer when simulation says 'ready'
         } catch {
-            setOnChainStatus('unknown');
+            // Don't downgrade existing status on error
         } finally {
             setChecking(false);
         }
-    }, [faucetId, senderAddress, active]);
+    }, [faucetId, senderAddress, active, isOneShot]);
 
     /* ── Restore state from localStorage (instant, no async) ── */
     useEffect(() => {
@@ -126,7 +135,7 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
     /* ── Handle claim ────────────────────────────────────── */
     const handleClaim = async () => {
         justClaimedRef.current = true;
-        const success = await claim(faucetId);
+        const success = await claim(faucetId, Number(cooldownSeconds));
         if (success) {
             if (isOneShot) {
                 setOnChainStatus('already-claimed');
@@ -143,7 +152,7 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
     };
 
     /* ── Derived state ───────────────────────────────────── */
-    const inCooldown = onChainStatus === 'cooldown' || (estimatedRemaining > 0 && onChainStatus !== 'ready');
+    const inCooldown = onChainStatus === 'cooldown' || estimatedRemaining > 0;
     const isClaimed = onChainStatus === 'already-claimed';
     const isDepleted = !active || onChainStatus === 'depleted';
 
