@@ -53,7 +53,7 @@ const CURRENCY = isMainnet ? 'BTC' : 'tBTC';
 const FAUCET_URL = 'https://faucet.opnet.org';
 
 const POLL_INTERVAL_MS = 10_000;
-const MAX_POLL_MS = isMainnet ? 30 * 60_000 : 10 * 60_000;
+const MAX_POLL_MS = isMainnet ? 30 * 60_000 : 5 * 60_000; // testnet blocktime ~2min
 
 // ── Helpers ───────────────────────────────────────────────────────
 
