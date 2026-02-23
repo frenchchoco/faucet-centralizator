@@ -17,8 +17,8 @@ interface ClaimButtonProps {
 }
 
 export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: ClaimButtonProps): React.JSX.Element {
-    const { walletAddress, address: senderAddress } = useWalletConnect();
-    const { claim, loading, error, txId } = useClaim(walletAddress, senderAddress);
+    const { walletAddress, address: senderAddress, provider: walletProvider, network: walletNetwork } = useWalletConnect();
+    const { claim, loading, error, txId } = useClaim(walletAddress, senderAddress, walletProvider, walletNetwork);
     const { toast } = useToast();
 
     const isOneShot = cooldownSeconds >= ONE_SHOT_THRESHOLD;
@@ -40,7 +40,7 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
         if (!senderAddress || !active || justClaimedRef.current) return;
         setChecking(true);
         try {
-            const status = await simulateClaim(faucetId, senderAddress);
+            const status = await simulateClaim(faucetId, senderAddress, walletProvider, walletNetwork);
             hasCheckedRef.current = true;
 
             // localStorage is authoritative — simulation can only EXTEND cooldowns,
@@ -62,7 +62,7 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
         } finally {
             setChecking(false);
         }
-    }, [faucetId, senderAddress, active, isOneShot]);
+    }, [faucetId, senderAddress, active, isOneShot, walletProvider, walletNetwork]);
 
     /* ── Restore state from localStorage (instant, no async) ── */
     useEffect(() => {

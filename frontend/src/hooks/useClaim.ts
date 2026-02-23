@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { getContract } from 'opnet';
+import type { AbstractRpcProvider } from 'opnet';
 import type { Address } from '@btc-vision/transaction';
+import type { Network } from '@btc-vision/bitcoin';
 import { FAUCET_MANAGER_ABI } from '../abi/FaucetManagerABI.js';
 import type { IFaucetManagerContract } from '../abi/FaucetManagerABI.js';
 import { FAUCET_MANAGER_ADDRESS } from '../config/contracts.js';
@@ -25,9 +27,15 @@ function saveClaimTime(faucetId: number, wallet: string): void {
 }
 
 /* ── Contract helper ──────────────────────────────────────── */
-function getManager(sender?: Address) {
+function getManager(
+    sender?: Address,
+    walletProvider?: AbstractRpcProvider | null,
+    walletNetwork?: Network | null,
+) {
+    const provider = walletProvider ?? getProvider();
+    const network = walletNetwork ?? CURRENT_NETWORK;
     return getContract<IFaucetManagerContract>(
-        FAUCET_MANAGER_ADDRESS, FAUCET_MANAGER_ABI, getProvider(), CURRENT_NETWORK,
+        FAUCET_MANAGER_ADDRESS, FAUCET_MANAGER_ABI, provider, network,
         sender ?? undefined,
     );
 }
@@ -37,11 +45,16 @@ export type ClaimStatus = 'ready' | 'cooldown' | 'already-claimed' | 'depleted' 
 
 /**
  * Simulate a claim to check if it would succeed on-chain right now.
- * Returns a status string parsed from the revert reason (if any).
+ * Uses wallet provider/network when available.
  */
-export async function simulateClaim(faucetId: number, sender?: Address): Promise<ClaimStatus> {
+export async function simulateClaim(
+    faucetId: number,
+    sender?: Address,
+    walletProvider?: AbstractRpcProvider | null,
+    walletNetwork?: Network | null,
+): Promise<ClaimStatus> {
     try {
-        const sim = await getManager(sender).claim(BigInt(faucetId));
+        const sim = await getManager(sender, walletProvider, walletNetwork).claim(BigInt(faucetId));
         if (sim.revert) {
             const r = sim.revert;
             if (/already claimed/i.test(r)) return 'already-claimed';
@@ -49,13 +62,13 @@ export async function simulateClaim(faucetId: number, sender?: Address): Promise
             if (/insufficient remaining|not active/i.test(r)) return 'depleted';
             return 'unknown';
         }
-        return 'ready'; // simulation succeeded — user CAN claim
+        return 'ready';
     } catch {
         return 'unknown';
     }
 }
 
-/* ── Anti-sybil helpers (Vercel Edge + KV) ───────────────── */
+/* ── Anti-sybil helpers (Vercel Edge + Upstash Redis) ─────── */
 async function verifyClaim(faucetId: number, cooldownSeconds: number): Promise<{ allowed: boolean; remainingSeconds?: number }> {
     try {
         const res = await fetch('/api/verify-claim', {
@@ -65,7 +78,6 @@ async function verifyClaim(faucetId: number, cooldownSeconds: number): Promise<{
         });
         return (await res.json()) as { allowed: boolean; remainingSeconds?: number };
     } catch {
-        // If anti-sybil is unavailable (no KV, local dev), allow claim
         return { allowed: true };
     }
 }
@@ -77,11 +89,16 @@ async function recordClaim(faucetId: number, cooldownSeconds: number): Promise<v
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ faucetId: String(faucetId), cooldownSeconds }),
         });
-    } catch { /* best-effort — claim already succeeded on-chain */ }
+    } catch { /* best-effort */ }
 }
 
 /* ── Hook ─────────────────────────────────────────────────── */
-export function useClaim(walletAddress: string | null, senderAddress: Address | null) {
+export function useClaim(
+    walletAddress: string | null,
+    senderAddress: Address | null,
+    walletProvider?: AbstractRpcProvider | null,
+    walletNetwork?: Network | null,
+) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [txId, setTxId] = useState<string | null>(null);
@@ -92,7 +109,6 @@ export function useClaim(walletAddress: string | null, senderAddress: Address | 
         setError(null);
         setTxId(null);
         try {
-            // Anti-sybil: check IP rate limit before claiming
             const cd = cooldownSeconds ?? 0;
             const check = await verifyClaim(faucetId, cd);
             if (!check.allowed) {
@@ -101,17 +117,16 @@ export function useClaim(walletAddress: string | null, senderAddress: Address | 
                 return false;
             }
 
-            const contract = getManager(senderAddress ?? undefined);
+            const network = walletNetwork ?? CURRENT_NETWORK;
+            const contract = getManager(senderAddress ?? undefined, walletProvider, walletNetwork);
             const sim = await contract.claim(BigInt(faucetId));
             if (sim.revert) { setError(`Simulation reverted: ${sim.revert}`); return false; }
             const receipt = await sim.sendTransaction({
                 signer: null, mldsaSigner: null, refundTo: walletAddress,
-                maximumAllowedSatToSpend: 100_000n, feeRate: 10, network: CURRENT_NETWORK,
+                maximumAllowedSatToSpend: 100_000n, feeRate: 10, network,
             });
             setTxId(receipt.transactionId);
-            // Persist claim time locally
             saveClaimTime(faucetId, walletAddress);
-            // Record claim in Vercel KV for IP-based rate limiting
             void recordClaim(faucetId, cd);
             return true;
         } catch (err) {
@@ -120,7 +135,7 @@ export function useClaim(walletAddress: string | null, senderAddress: Address | 
         } finally {
             setLoading(false);
         }
-    }, [walletAddress, senderAddress]);
+    }, [walletAddress, senderAddress, walletProvider, walletNetwork]);
 
     return { claim, loading, error, txId };
 }

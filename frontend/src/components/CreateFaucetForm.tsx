@@ -25,7 +25,7 @@ const POLL_MS = 15_000;
 const MAX_WAIT_MS = 15 * 60_000;
 
 export function CreateFaucetForm(): React.JSX.Element {
-    const { walletAddress, address: senderAddress } = useWalletConnect();
+    const { walletAddress, address: senderAddress, provider: walletProvider, network: walletNetwork } = useWalletConnect();
     const [tokenAddress, setTokenAddress] = useState('');
     const [totalAmount, setTotalAmount] = useState('');
     const [amountPerClaim, setAmountPerClaim] = useState('');
@@ -41,6 +41,10 @@ export function CreateFaucetForm(): React.JSX.Element {
     const { tokenInfo } = useTokenInfo(tokenAddress || null);
     const decimals = tokenInfo?.decimals ?? 8;
 
+    // Use wallet provider/network when available, fall back to config
+    const provider = walletProvider ?? getProvider();
+    const network = walletNetwork ?? CURRENT_NETWORK;
+
     const stopPolling = () => {
         if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -48,10 +52,10 @@ export function CreateFaucetForm(): React.JSX.Element {
 
     useEffect(() => () => stopPolling(), []);
 
-    const getFaucetManagerAddr = () => getProvider().getPublicKeyInfo(FAUCET_MANAGER_ADDRESS, true);
+    const getFaucetManagerAddr = () => provider.getPublicKeyInfo(FAUCET_MANAGER_ADDRESS, true);
 
     const getTokenContract = () =>
-        getContract<IOP20Contract>(tokenAddress, OP_20_ABI, getProvider(), CURRENT_NETWORK, senderAddress ?? undefined);
+        getContract<IOP20Contract>(tokenAddress, OP_20_ABI, provider, network, senderAddress ?? undefined);
 
     const checkAllowance = async (rawAmount: bigint): Promise<boolean> => {
         const res = await getTokenContract().allowance(senderAddress!, await getFaucetManagerAddr());
@@ -76,7 +80,7 @@ export function CreateFaucetForm(): React.JSX.Element {
 
     const buildTxParams = (): TransactionParameters => ({
         signer: null, mldsaSigner: null, refundTo: walletAddress!,
-        maximumAllowedSatToSpend: 100_000n, feeRate: 10, network: CURRENT_NETWORK,
+        maximumAllowedSatToSpend: 100_000n, feeRate: 10, network,
     });
 
     const startPolling = (checkFn: () => Promise<boolean>, onDone: () => void) => {
@@ -100,7 +104,7 @@ export function CreateFaucetForm(): React.JSX.Element {
             const receipt = await sim.sendTransaction(buildTxParams());
             setPendingTxId(receipt.transactionId);
             setStep('waiting-approve');
-            setSuccessMsg('Approve TX broadcast! Regtest blocks are ~10 min — waiting for confirmation...');
+            setSuccessMsg('Approve TX broadcast! Waiting for confirmation...');
             startPolling(() => checkAllowance(rawAmount), () => {
                 setStep('create');
                 setSuccessMsg('Approval confirmed! You can now create the faucet.');
@@ -115,9 +119,8 @@ export function CreateFaucetForm(): React.JSX.Element {
         if (!tokenAddress || !totalAmount || !amountPerClaim) { setError('Fill in all fields'); return; }
         setLoading(true); setError(null); setSuccessMsg(null);
         try {
-            const provider = getProvider();
             const contract = getContract<IFaucetManagerContract>(
-                FAUCET_MANAGER_ADDRESS, FAUCET_MANAGER_ABI, provider, CURRENT_NETWORK, senderAddress ?? undefined,
+                FAUCET_MANAGER_ADDRESS, FAUCET_MANAGER_ABI, provider, network, senderAddress ?? undefined,
             );
             const prevCount = (await contract.getFaucetCount()).properties.count ?? 0n;
             const tokenAddr = await provider.getPublicKeyInfo(tokenAddress, true);
@@ -128,10 +131,10 @@ export function CreateFaucetForm(): React.JSX.Element {
             const receipt = await sim.sendTransaction(buildTxParams());
             setPendingTxId(receipt.transactionId);
             setStep('waiting-create');
-            setSuccessMsg('Create TX broadcast! Regtest blocks are ~10 min — waiting for confirmation...');
+            setSuccessMsg('Create TX broadcast! Waiting for confirmation...');
             startPolling(async () => {
                 const c = getContract<IFaucetManagerContract>(
-                    FAUCET_MANAGER_ADDRESS, FAUCET_MANAGER_ABI, getProvider(), CURRENT_NETWORK, senderAddress ?? undefined,
+                    FAUCET_MANAGER_ADDRESS, FAUCET_MANAGER_ABI, provider, network, senderAddress ?? undefined,
                 );
                 const res = await c.getFaucetCount();
                 return !res.revert && (res.properties.count ?? 0n) > prevCount;
@@ -158,7 +161,7 @@ export function CreateFaucetForm(): React.JSX.Element {
             <div className="form-card">
                 <div className="form-group">
                     <label className="form-label" htmlFor="token-address">Token Contract Address</label>
-                    <input id="token-address" className="form-input" type="text" placeholder="opr1s..."
+                    <input id="token-address" className="form-input" type="text" placeholder="opt1s..."
                         value={tokenAddress} onChange={(e) => setTokenAddress(e.target.value)} disabled={formLocked} />
                     <TokenInfo address={tokenAddress || null} />
                 </div>
