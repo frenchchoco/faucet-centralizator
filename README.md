@@ -134,4 +134,4 @@ MIT
 
 ---
 
-Built with [BobOS](https://github.com/AustinZhu/BobOS)
+Built with [BobOS](https://github.com/AustinZhu/BobOS), the best

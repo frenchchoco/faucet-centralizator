@@ -313,6 +313,8 @@ export function CreateFaucetForm(): React.JSX.Element {
 
     const isWaiting = step === 'waiting-approve' || step === 'waiting-create';
     const formLocked = step !== 'approve';
+    const approveReady =
+        !!walletAddress && !!tokenAddress && !!tokenInfo && !!totalAmount && !!amountPerClaim;
 
     return (
         <div className="create-faucet-wrapper">
@@ -401,7 +403,7 @@ export function CreateFaucetForm(): React.JSX.Element {
                     {step === 'approve' && (
                         <button
                             className="btn btn-primary"
-                            disabled={loading || !walletAddress}
+                            disabled={loading || !approveReady}
                             onClick={() => void handleApprove()}
                         >
                             {loading ? 'Approving...' : 'Approve Token'}
