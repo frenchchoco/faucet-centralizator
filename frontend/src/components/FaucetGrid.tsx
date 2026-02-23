@@ -1,8 +1,12 @@
+import { useMemo, useState } from 'react';
 import type React from 'react';
 import { Link } from 'react-router-dom';
 import { useFaucets } from '../hooks/useFaucets.js';
+import { useTokenInfoMap } from '../hooks/useTokenInfoMap.js';
+import type { FaucetData } from '../hooks/useFaucets.js';
 import { FaucetCard } from './FaucetCard.js';
 
+/* ── Skeleton placeholder ────────────────────────────────── */
 function SkeletonCard(): React.JSX.Element {
     return (
         <div className="faucet-card skeleton-card">
@@ -15,24 +19,136 @@ function SkeletonCard(): React.JSX.Element {
     );
 }
 
+/* ── Filter / sort types ─────────────────────────────────── */
+type StatusFilter = 'all' | 'active' | 'depleted';
+type SortKey = 'newest' | 'remaining' | 'per-claim' | 'depleted-last';
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+    { value: 'depleted-last', label: 'Active first' },
+    { value: 'newest', label: 'Newest' },
+    { value: 'remaining', label: 'Most remaining' },
+    { value: 'per-claim', label: 'Highest per claim' },
+];
+
+/* ── Main component ──────────────────────────────────────── */
 export function FaucetGrid(): React.JSX.Element {
     const { faucets, loading, error, refetch } = useFaucets();
 
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [tokenFilter, setTokenFilter] = useState<string>('all');
+    const [sortKey, setSortKey] = useState<SortKey>('depleted-last');
+
+    /* Collect unique token addresses for batch info fetch */
+    const uniqueAddresses = useMemo(
+        () => [...new Set(faucets.map((f) => f.tokenAddress.toHex()))],
+        [faucets],
+    );
+    const tokenInfoMap = useTokenInfoMap(uniqueAddresses);
+
+    /* Build token filter options */
+    const tokenOptions = useMemo(() => {
+        const opts: { address: string; label: string }[] = [];
+        for (const addr of uniqueAddresses) {
+            const info = tokenInfoMap.get(addr);
+            opts.push({ address: addr, label: info ? `${info.symbol}` : addr.slice(0, 10) + '…' });
+        }
+        return opts.sort((a, b) => a.label.localeCompare(b.label));
+    }, [uniqueAddresses, tokenInfoMap]);
+
+    /* Apply filters */
+    const filtered = useMemo(() => {
+        let result: FaucetData[] = [...faucets];
+
+        if (statusFilter === 'active') result = result.filter((f) => f.active);
+        else if (statusFilter === 'depleted') result = result.filter((f) => !f.active);
+
+        if (tokenFilter !== 'all') result = result.filter((f) => f.tokenAddress.toHex() === tokenFilter);
+
+        /* Sort */
+        switch (sortKey) {
+            case 'newest':
+                result.sort((a, b) => b.id - a.id);
+                break;
+            case 'remaining':
+                result.sort((a, b) => (b.remainingBalance > a.remainingBalance ? 1 : b.remainingBalance < a.remainingBalance ? -1 : 0));
+                break;
+            case 'per-claim':
+                result.sort((a, b) => (b.amountPerClaim > a.amountPerClaim ? 1 : b.amountPerClaim < a.amountPerClaim ? -1 : 0));
+                break;
+            case 'depleted-last':
+                result.sort((a, b) => {
+                    if (a.active !== b.active) return a.active ? -1 : 1;
+                    return b.id - a.id;
+                });
+                break;
+        }
+
+        return result;
+    }, [faucets, statusFilter, tokenFilter, sortKey]);
+
+    const showToolbar = !loading && !error && faucets.length > 0;
+
     return (
         <div className="faucet-grid-wrapper">
+            {/* ── Hero ───────────────────────────────────────── */}
             <section className="hero">
                 <h1 className="hero-title">Claim Free OP20 Tokens on Bitcoin</h1>
                 <p className="hero-subtitle">
                     Anyone can create a faucet for any token. Fully on-chain, no admin keys, powered by OPNet.
                 </p>
                 <div className="hero-actions">
-                    <a href="#faucets" className="btn btn-connect">Browse Faucets</a>
                     <Link to="/create" className="btn btn-primary hero-btn">Create a Faucet</Link>
                 </div>
             </section>
 
             <h2 className="page-title" id="faucets">Available Faucets</h2>
 
+            {/* ── Filter / Sort toolbar ──────────────────────── */}
+            {showToolbar && (
+                <div className="filter-toolbar">
+                    {/* Status pills */}
+                    <div className="filter-group">
+                        {(['all', 'active', 'depleted'] as StatusFilter[]).map((s) => (
+                            <button
+                                key={s}
+                                className={`filter-pill${statusFilter === s ? ' filter-pill-active' : ''}`}
+                                onClick={() => setStatusFilter(s)}
+                            >
+                                {s === 'all' ? 'All' : s === 'active' ? '● Active' : '○ Depleted'}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="filter-group filter-selects">
+                        {/* Token dropdown */}
+                        {tokenOptions.length > 1 && (
+                            <select
+                                className="filter-select"
+                                value={tokenFilter}
+                                onChange={(e) => setTokenFilter(e.target.value)}
+                            >
+                                <option value="all">All tokens</option>
+                                {tokenOptions.map((t) => (
+                                    <option key={t.address} value={t.address}>{t.label}</option>
+                                ))}
+                            </select>
+                        )}
+
+                        {/* Sort dropdown */}
+                        <select
+                            className="filter-select"
+                            value={sortKey}
+                            onChange={(e) => setSortKey(e.target.value as SortKey)}
+                        >
+                            {SORT_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Content ────────────────────────────────────── */}
             {loading ? (
                 <div className="faucet-grid">
                     <SkeletonCard /><SkeletonCard /><SkeletonCard />
@@ -49,9 +165,17 @@ export function FaucetGrid(): React.JSX.Element {
                     <p className="empty-hint">Be the first to create one!</p>
                     <Link to="/create" className="btn btn-primary" style={{ marginTop: '1rem', display: 'inline-block' }}>Create a Faucet</Link>
                 </div>
+            ) : filtered.length === 0 ? (
+                <div className="empty-state">
+                    <div className="empty-icon">🔍</div>
+                    <p>No faucets match your filters.</p>
+                    <button className="btn" style={{ marginTop: '1rem' }} onClick={() => { setStatusFilter('all'); setTokenFilter('all'); }}>
+                        Clear filters
+                    </button>
+                </div>
             ) : (
                 <div className="faucet-grid">
-                    {faucets.map((f) => <FaucetCard key={f.id} faucet={f} onClaimed={refetch} />)}
+                    {filtered.map((f) => <FaucetCard key={f.id} faucet={f} onClaimed={refetch} />)}
                 </div>
             )}
         </div>
