@@ -4,6 +4,8 @@ import { useWalletConnect } from '@btc-vision/walletconnect';
 import { useClaim } from '../hooks/useClaim.js';
 import { formatTime } from '../utils/format.js';
 
+const ONE_SHOT_THRESHOLD = 18446744073709551615n;
+
 interface ClaimButtonProps {
     faucetId: number;
     active: boolean;
@@ -15,6 +17,8 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
     const { walletAddress, address: senderAddress } = useWalletConnect();
     const { claim, loading, error, txId } = useClaim(walletAddress, senderAddress);
     const [cooldownRemaining, setCooldownRemaining] = useState(0);
+    const [claimed, setClaimed] = useState(false);
+    const isOneShot = cooldownSeconds >= ONE_SHOT_THRESHOLD;
 
     useEffect(() => {
         if (cooldownRemaining <= 0) return;
@@ -25,14 +29,16 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
     }, [cooldownRemaining]);
 
     const handleClaim = async () => {
-        if (await claim(faucetId, cooldownSeconds)) {
-            setCooldownRemaining(Number(cooldownSeconds));
+        if (await claim(faucetId)) {
+            setClaimed(true);
+            if (!isOneShot) setCooldownRemaining(Number(cooldownSeconds));
             onClaimed?.();
         }
     };
 
     if (!walletAddress) return <button className="btn btn-claim disabled" disabled>Connect Wallet to Claim</button>;
     if (!active) return <button className="btn btn-claim disabled" disabled>Faucet Depleted</button>;
+    if (claimed && isOneShot) return <button className="btn btn-claim disabled" disabled>Claimed ✓</button>;
     if (cooldownRemaining > 0) return <button className="btn btn-claim cooldown" disabled>Cooldown: {formatTime(cooldownRemaining)}</button>;
 
     return (
