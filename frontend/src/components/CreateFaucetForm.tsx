@@ -56,7 +56,7 @@ export function CreateFaucetForm(): React.JSX.Element {
     const buildTxParams = (): TransactionParameters => ({
         signer: null,
         mldsaSigner: null,
-        refundTo: publicKey!,
+        refundTo: walletAddress!,
         maximumAllowedSatToSpend: 100_000n,
         feeRate: 10,
         network: CURRENT_NETWORK,

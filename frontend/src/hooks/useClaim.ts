@@ -90,7 +90,7 @@ export function useClaim(
                 const txParams: TransactionParameters = {
                     signer: null,
                     mldsaSigner: null,
-                    refundTo: publicKey,
+                    refundTo: walletAddress,
                     maximumAllowedSatToSpend: 100_000n,
                     feeRate: 10,
                     network: CURRENT_NETWORK,
