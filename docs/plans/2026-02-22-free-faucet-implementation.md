@@ -1,6 +1,5 @@
 # Free Faucet Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build a decentralized faucet dapp on OPNet where anyone can create and claim OP20 token faucets, with on-chain cooldowns and IP-based anti-sybil protection.
 
