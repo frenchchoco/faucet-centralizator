@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { getContract } from 'opnet';
 import type { TransactionParameters } from 'opnet';
+import type { Address } from '@btc-vision/transaction';
 import { FAUCET_MANAGER_ABI } from '../abi/FaucetManagerABI.js';
 import type { IFaucetManagerContract } from '../abi/FaucetManagerABI.js';
 import { FAUCET_MANAGER_ADDRESS } from '../config/contracts.js';
@@ -47,6 +48,7 @@ async function verifyIpRateLimit(faucetId: number, cooldownSeconds: bigint): Pro
 export function useClaim(
     walletAddress: string | null,
     publicKey: string | null,
+    senderAddress: Address | null,
 ): UseClaimReturn {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export function useClaim(
                     FAUCET_MANAGER_ABI,
                     provider,
                     CURRENT_NETWORK,
+                    senderAddress ?? undefined,
                 );
 
                 // Step 1: Simulate the claim
@@ -104,7 +107,7 @@ export function useClaim(
                 setLoading(false);
             }
         },
-        [walletAddress, publicKey],
+        [walletAddress, publicKey, senderAddress],
     );
 
     return { claim: claimFaucet, loading, error, txId };

@@ -19,8 +19,8 @@ export function ClaimButton({
     cooldownSeconds,
     onClaimed,
 }: ClaimButtonProps): React.JSX.Element {
-    const { walletAddress, publicKey } = useWalletConnect();
-    const { claim, loading, error, txId } = useClaim(walletAddress, publicKey);
+    const { walletAddress, publicKey, address: senderAddress } = useWalletConnect();
+    const { claim, loading, error, txId } = useClaim(walletAddress, publicKey, senderAddress);
     const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
 
     // Countdown timer for cooldown display

@@ -38,7 +38,7 @@ function parseAmount(value: string, decimals: number): bigint {
 }
 
 export function CreateFaucetForm(): React.JSX.Element {
-    const { walletAddress, publicKey } = useWalletConnect();
+    const { walletAddress, publicKey, address: senderAddress } = useWalletConnect();
 
     const [tokenAddress, setTokenAddress] = useState('');
     const [totalAmount, setTotalAmount] = useState('');
@@ -86,6 +86,7 @@ export function CreateFaucetForm(): React.JSX.Element {
                 OP_20_ABI,
                 provider,
                 CURRENT_NETWORK,
+                senderAddress ?? undefined,
             );
 
             // Resolve the FaucetManager's Address object from its P2OP address
@@ -143,6 +144,7 @@ export function CreateFaucetForm(): React.JSX.Element {
                 FAUCET_MANAGER_ABI,
                 provider,
                 CURRENT_NETWORK,
+                senderAddress ?? undefined,
             );
 
             // Resolve the token's Address object from its P2OP address
