@@ -19,7 +19,7 @@ async function verifyIpRateLimit(faucetId: number, cooldownSeconds: bigint): Pro
         const mins = Math.ceil(data.remainingSeconds / 60);
         throw new Error(`IP rate limited. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`);
     }
-    if (!res.ok) throw new Error('Anti-sybil check failed');
+    // Non-429 errors (e.g. KV down) → fail-open, on-chain cooldown is the source of truth
 }
 
 async function recordIpClaim(faucetId: number, cooldownSeconds: bigint): Promise<void> {
