@@ -32,6 +32,8 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
 
     // Track if we just claimed (to avoid re-check race)
     const justClaimedRef = useRef(false);
+    // Track if we've done at least one simulation
+    const hasCheckedRef = useRef(false);
 
     /* ── On-chain simulation check ───────────────────────── */
     const checkOnChain = useCallback(async () => {
@@ -40,6 +42,7 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
         try {
             const status = await simulateClaim(faucetId, senderAddress);
             setOnChainStatus(status);
+            hasCheckedRef.current = true;
 
             // If on-chain says ready, clear any estimated timer
             if (status === 'ready') {
@@ -52,27 +55,37 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
         }
     }, [faucetId, senderAddress, active]);
 
-    /* ── Initial check on mount + when wallet changes ──── */
+    /* ── Restore state from localStorage (instant, no async) ── */
     useEffect(() => {
-        justClaimedRef.current = false;
-        if (!walletAddress || !senderAddress || !active) return;
+        if (!walletAddress) return;
 
-        // Check localStorage for estimated timer
         const lastClaim = getLastClaimTime(faucetId, walletAddress);
-        if (lastClaim > 0 && !isOneShot) {
+        if (lastClaim <= 0) return;
+
+        if (isOneShot) {
+            // One-shot: if we have a record, show claimed immediately
+            setOnChainStatus('already-claimed');
+        } else {
+            // Cooldown: calculate remaining time
             const elapsed = Math.floor((Date.now() - lastClaim) / 1000);
             const remaining = Math.max(0, Number(cooldownSeconds) - elapsed);
-            setEstimatedRemaining(remaining);
+            if (remaining > 0) {
+                setEstimatedRemaining(remaining);
+                setOnChainStatus('cooldown');
+            }
         }
+    }, [walletAddress, faucetId, isOneShot, cooldownSeconds]);
 
-        // Run on-chain simulation
+    /* ── Run simulation when wallet becomes available ──────── */
+    useEffect(() => {
+        justClaimedRef.current = false;
+        if (!senderAddress || !active) return;
         void checkOnChain();
-    }, [walletAddress, senderAddress, faucetId, active, cooldownSeconds, isOneShot, checkOnChain]);
+    }, [senderAddress, active, checkOnChain]);
 
     /* ── Periodic on-chain polling ────────────────────────── */
     useEffect(() => {
         if (!senderAddress || !active) return;
-        // Only poll if we think there's a cooldown
         if (onChainStatus !== 'cooldown' && onChainStatus !== 'already-claimed' && estimatedRemaining <= 0) return;
 
         const interval = setInterval(() => {
@@ -134,13 +147,13 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
     const isClaimed = onChainStatus === 'already-claimed';
     const isDepleted = !active || onChainStatus === 'depleted';
 
-    const disabled = !walletAddress || isDepleted || loading || checking || isClaimed || inCooldown;
+    const disabled = !walletAddress || isDepleted || loading || isClaimed || inCooldown;
 
     let label = 'Claim';
     if (!walletAddress) label = 'Connect Wallet to Claim';
     else if (isDepleted) label = 'Faucet Depleted';
     else if (loading) label = 'Claiming…';
-    else if (checking && onChainStatus === 'unknown') label = 'Checking…';
+    else if (checking && !hasCheckedRef.current && onChainStatus === 'unknown') label = 'Checking…';
     else if (isClaimed) label = 'Claimed ✓';
     else if (inCooldown) {
         label = estimatedRemaining > 0
@@ -153,7 +166,7 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
     return (
         <div className="claim-wrapper">
             <button className={btnClass} disabled={disabled} onClick={() => void handleClaim()}>
-                {(loading || (checking && onChainStatus === 'unknown')) && <span className="btn-spinner" />}
+                {(loading || (checking && !hasCheckedRef.current && onChainStatus === 'unknown')) && <span className="btn-spinner" />}
                 <span>{label}</span>
             </button>
         </div>
