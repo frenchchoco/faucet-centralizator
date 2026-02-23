@@ -69,7 +69,9 @@ faucet-centralizator/
 │   │   ├── services/          # Provider singleton
 │   │   └── styles/            # Global CSS (Neon Arcade theme)
 │   ├── api/                   # Vercel Edge Functions
-│   │   └── verify-claim.ts    # Anti-sybil IP check
+│   │   ├── verify-claim.ts    # Anti-sybil IP check (read-only)
+│   │   ├── record-claim.ts    # Record claim after on-chain success
+│   │   └── flush-claims.ts    # Purge all KV rate-limit entries
 │   └── vercel.json            # Vercel deployment config
 ├── scripts/           # Deploy-all pipeline
 │   └── deploy.ts              # Fully automated deployment script
@@ -127,6 +129,18 @@ npm run build:frontend
 | `npm run deploy` | **Regtest** (default, contest) | `https://regtest.opnet.org` |
 | `npm run deploy:testnet` | Testnet | `https://testnet.opnet.org` |
 | `npm run deploy:mainnet` | Mainnet | `https://api.opnet.org` |
+
+## Admin: Purge IP Rate-Limit Entries
+
+If users get blocked by the anti-sybil IP check due to stale KV entries (e.g. a failed on-chain claim that was recorded), the **project owner** can flush all entries:
+
+```bash
+curl -X POST https://frontend-nine-beige-72.vercel.app/api/flush-claims
+```
+
+This deletes all `claim:*` keys from Vercel KV. Only needed if something went wrong — normal claims self-expire after the cooldown period.
+
+> **Who runs this?** The project deployer / admin. This endpoint is public for simplicity on regtest. For mainnet, add authentication.
 
 ## License
 
