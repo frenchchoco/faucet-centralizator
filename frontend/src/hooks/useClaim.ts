@@ -22,6 +22,15 @@ async function verifyIpRateLimit(faucetId: number, cooldownSeconds: bigint): Pro
     if (!res.ok) throw new Error('Anti-sybil check failed');
 }
 
+async function recordIpClaim(faucetId: number, cooldownSeconds: bigint): Promise<void> {
+    if (window.location.hostname === 'localhost') return;
+    await fetch('/api/record-claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ faucetId: String(faucetId), cooldownSeconds: Number(cooldownSeconds) }),
+    }).catch(() => { /* non-blocking */ });
+}
+
 export function useClaim(walletAddress: string | null, senderAddress: Address | null) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -45,6 +54,7 @@ export function useClaim(walletAddress: string | null, senderAddress: Address | 
                 maximumAllowedSatToSpend: 100_000n, feeRate: 10, network: CURRENT_NETWORK,
             });
             setTxId(receipt.transactionId);
+            await recordIpClaim(faucetId, cooldownSeconds);
             return true;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Claim failed');

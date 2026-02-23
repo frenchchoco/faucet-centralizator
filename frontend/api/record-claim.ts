@@ -3,7 +3,6 @@ import { kv } from '@vercel/kv';
 export const config = { runtime: 'edge' };
 
 const ONE_YEAR = 365 * 24 * 3600;
-const isOneShot = (cd: number) => cd === 0 || cd > ONE_YEAR;
 
 export default async function handler(request: Request): Promise<Response> {
     if (request.method !== 'POST') {
@@ -17,17 +16,8 @@ export default async function handler(request: Request): Promise<Response> {
         return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    const lastClaim = await kv.get<number>(`claim:${faucetId}:${ip}`);
-    if (lastClaim) {
-        const elapsed = Math.floor(Date.now() / 1000) - lastClaim;
-        const effective = isOneShot(cooldownSeconds) ? Infinity : cooldownSeconds;
-        if (elapsed < effective) {
-            return new Response(
-                JSON.stringify({ allowed: false, remainingSeconds: effective - elapsed }),
-                { status: 429, headers: { 'Content-Type': 'application/json' } },
-            );
-        }
-    }
+    const ttl = (cooldownSeconds === 0 || cooldownSeconds > ONE_YEAR) ? ONE_YEAR : cooldownSeconds;
+    await kv.set(`claim:${faucetId}:${ip}`, Math.floor(Date.now() / 1000), { ex: ttl });
 
-    return new Response(JSON.stringify({ allowed: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ recorded: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
