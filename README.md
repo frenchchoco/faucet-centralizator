@@ -117,13 +117,17 @@ npm run build:frontend
 - **Wallet**: @btc-vision/walletconnect v2 (OP_WALLET)
 - **Blockchain SDK**: opnet npm package, @btc-vision/transaction
 - **Anti-Sybil**: Vercel Edge Functions + Vercel KV
-- **Deployment**: Vercel (frontend), OPNet regtest (contract)
+- **Deployment**: Vercel (frontend), OPNet testnet (contract)
 
 ## Network
 
-- **Network**: OPNet Regtest
-- **RPC**: `https://regtest.opnet.org`
+- **Network**: OPNet Testnet
+- **RPC**: `https://testnet.opnet.org`
 
 ## License
 
 MIT
+
+---
+
+Built with [BobOS](https://github.com/AustinZhu/BobOS)
