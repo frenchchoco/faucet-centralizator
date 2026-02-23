@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { getContract, OP_20_ABI } from 'opnet';
 import type { IOP20Contract, TransactionParameters } from 'opnet';
 import { useWalletConnect } from '@btc-vision/walletconnect';
-import { Address } from '@btc-vision/transaction';
+import type { Address } from '@btc-vision/transaction';
 import { TokenInfo } from './TokenInfo.js';
 import { useTokenInfo } from '../hooks/useTokenInfo.js';
 import { FAUCET_MANAGER_ABI } from '../abi/FaucetManagerABI.js';
@@ -88,11 +88,15 @@ export function CreateFaucetForm(): React.JSX.Element {
                 CURRENT_NETWORK,
             );
 
-            const faucetManagerAddress = Address.fromString(FAUCET_MANAGER_ADDRESS);
+            // Resolve the FaucetManager's Address object from its P2OP address
+            const faucetManagerAddr: Address = await provider.getPublicKeyInfo(
+                FAUCET_MANAGER_ADDRESS,
+                true,
+            );
 
             // Simulate approve
             const approveResult = await tokenContract.increaseAllowance(
-                faucetManagerAddress,
+                faucetManagerAddr,
                 rawAmount,
             );
 
@@ -141,7 +145,11 @@ export function CreateFaucetForm(): React.JSX.Element {
                 CURRENT_NETWORK,
             );
 
-            const tokenAddr = Address.fromString(tokenAddress);
+            // Resolve the token's Address object from its P2OP address
+            const tokenAddr: Address = await provider.getPublicKeyInfo(
+                tokenAddress,
+                true,
+            );
 
             // Simulate createFaucet
             const simulationResult = await contract.createFaucet(
