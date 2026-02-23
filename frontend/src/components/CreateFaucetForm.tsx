@@ -79,6 +79,61 @@ export function CreateFaucetForm(): React.JSX.Element {
         return () => stopPolling();
     }, []);
 
+    // Check existing on-chain allowance — skip to "create" if already approved
+    useEffect(() => {
+        if (step !== 'approve' || !senderAddress || !tokenAddress || !totalAmount || !tokenInfo) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const checkExistingAllowance = async (): Promise<void> => {
+            try {
+                const provider = getProvider();
+                const rawAmount = parseAmount(totalAmount, tokenInfo.decimals);
+                if (rawAmount <= 0n) return;
+
+                const tokenContract = getContract<IOP20Contract>(
+                    tokenAddress,
+                    OP_20_ABI,
+                    provider,
+                    CURRENT_NETWORK,
+                    senderAddress ?? undefined,
+                );
+
+                const faucetManagerAddr: Address = await provider.getPublicKeyInfo(
+                    FAUCET_MANAGER_ADDRESS,
+                    true,
+                );
+
+                const allowanceResult = await tokenContract.allowance(
+                    senderAddress,
+                    faucetManagerAddr,
+                );
+
+                if (cancelled) return;
+
+                if (!allowanceResult.revert) {
+                    const remaining = allowanceResult.properties.remaining ?? 0n;
+                    if (remaining >= rawAmount) {
+                        setStep('create');
+                        setSuccessMessage(
+                            'Existing approval detected on-chain. You can create the faucet directly!',
+                        );
+                    }
+                }
+            } catch {
+                // Silently ignore — user can still approve manually
+            }
+        };
+
+        void checkExistingAllowance();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [step, senderAddress, tokenAddress, totalAmount, tokenInfo]);
+
     const buildTxParams = (): TransactionParameters => ({
         signer: null,
         mldsaSigner: null,
