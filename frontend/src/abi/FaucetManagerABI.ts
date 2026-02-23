@@ -2,48 +2,20 @@ import { ABIDataTypes, BitcoinAbiTypes, type BitcoinInterfaceAbi } from 'opnet';
 import type { CallResult, BaseContractProperties } from 'opnet';
 import type { Address } from '@btc-vision/transaction';
 
-// ---- Result types for typed contract calls ---- //
-
-export type CreateFaucetResult = CallResult<{
-    faucetId: bigint;
-}>;
-
-export type ClaimResult = CallResult<{
-    success: boolean;
-}>;
-
+export type CreateFaucetResult = CallResult<{ faucetId: bigint }>;
+export type ClaimResult = CallResult<{ success: boolean }>;
 export type GetFaucetResult = CallResult<{
-    tokenAddress: Address;
-    creator: Address;
-    totalDeposited: bigint;
-    remainingBalance: bigint;
-    amountPerClaim: bigint;
-    cooldownSeconds: bigint;
-    active: boolean;
+    tokenAddress: Address; creator: Address; totalDeposited: bigint;
+    remainingBalance: bigint; amountPerClaim: bigint; cooldownSeconds: bigint; active: boolean;
 }>;
-
-export type GetFaucetCountResult = CallResult<{
-    count: bigint;
-}>;
-
-// ---- Contract interface ---- //
+export type GetFaucetCountResult = CallResult<{ count: bigint }>;
 
 export interface IFaucetManagerContract extends BaseContractProperties {
-    createFaucet(
-        token: Address,
-        totalAmount: bigint,
-        amountPerClaim: bigint,
-        cooldownType: number,
-    ): Promise<CreateFaucetResult>;
-
+    createFaucet(token: Address, totalAmount: bigint, amountPerClaim: bigint, cooldownType: number): Promise<CreateFaucetResult>;
     claim(faucetId: bigint): Promise<ClaimResult>;
-
     getFaucet(faucetId: bigint): Promise<GetFaucetResult>;
-
     getFaucetCount(): Promise<GetFaucetCountResult>;
 }
-
-// ---- ABI definition ---- //
 
 export const FAUCET_MANAGER_ABI: BitcoinInterfaceAbi = [
     {

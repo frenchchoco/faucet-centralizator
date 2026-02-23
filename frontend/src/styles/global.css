@@ -1,9 +1,3 @@
-/* =============================================
-   FAUCET CENTRALIZATOR — Neon Arcade Theme
-   ============================================= */
-
-/* ---- CSS Custom Properties ---- */
-
 :root {
     --bg-deep: #0a0a1a;
     --bg-card: rgba(15, 15, 35, 0.85);
@@ -31,15 +25,11 @@
     --glow-green: 0 0 20px rgba(57, 255, 20, 0.35);
 }
 
-/* ---- Reset ---- */
-
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
-
-/* ---- Body ---- */
 
 body {
     font-family: 'Nunito', system-ui, sans-serif;
@@ -49,7 +39,6 @@ body {
     overflow-x: hidden;
 }
 
-/* Animated mesh gradient background */
 body::before {
     content: '';
     position: fixed;
@@ -62,7 +51,6 @@ body::before {
     animation: meshDrift 20s ease-in-out infinite alternate;
 }
 
-/* Subtle grid pattern overlay */
 body::after {
     content: '';
     position: fixed;
@@ -95,8 +83,6 @@ a {
     text-decoration: none;
 }
 
-/* ---- Scrollbar ---- */
-
 ::-webkit-scrollbar {
     width: 6px;
 }
@@ -113,8 +99,6 @@ a {
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 240, 255, 0.5);
 }
-
-/* ---- Header ---- */
 
 .header {
     background: rgba(10, 10, 26, 0.8);
@@ -176,8 +160,6 @@ a {
     text-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
 }
 
-/* ---- Buttons ---- */
-
 .btn {
     padding: 0.6rem 1.3rem;
     border: none;
@@ -222,7 +204,6 @@ a {
     cursor: not-allowed;
 }
 
-/* Connect Wallet */
 .btn-connect {
     background: linear-gradient(135deg, var(--neon-cyan), #0099cc);
     border: 1px solid rgba(0, 240, 255, 0.3);
@@ -235,7 +216,6 @@ a {
     transform: translateY(-2px);
 }
 
-/* Disconnect */
 .btn-disconnect {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -248,7 +228,6 @@ a {
     color: var(--neon-pink);
 }
 
-/* Primary (form submit) */
 .btn-primary {
     background: linear-gradient(135deg, var(--neon-purple), var(--neon-pink));
     border: 1px solid rgba(185, 77, 255, 0.3);
@@ -265,7 +244,6 @@ a {
     transform: translateY(-2px);
 }
 
-/* Claim Button */
 .btn-claim {
     background: linear-gradient(135deg, var(--neon-green), #00cc66);
     border: 1px solid rgba(57, 255, 20, 0.3);
@@ -296,8 +274,6 @@ a {
     color: var(--text-muted);
 }
 
-/* ---- Wallet ---- */
-
 .wallet-connected {
     display: flex;
     align-items: center;
@@ -315,8 +291,6 @@ a {
     letter-spacing: 0.5px;
 }
 
-/* ---- Main Content ---- */
-
 .main-content {
     max-width: 1200px;
     margin: 0 auto;
@@ -333,8 +307,6 @@ a {
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
-
-/* ---- States (loading, empty, error) ---- */
 
 .loading-state,
 .empty-state,
@@ -365,15 +337,11 @@ a {
     margin-top: 1.25rem;
 }
 
-/* ---- Faucet Grid ---- */
-
 .faucet-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
     gap: 1.5rem;
 }
-
-/* ---- Faucet Card ---- */
 
 .faucet-card {
     background: var(--bg-card);
@@ -390,7 +358,6 @@ a {
     overflow: hidden;
 }
 
-/* Top gradient accent line */
 .faucet-card::before {
     content: '';
     position: absolute;
@@ -435,8 +402,6 @@ a {
     letter-spacing: 0.2px;
 }
 
-/* ---- Badges ---- */
-
 .badge {
     padding: 0.25rem 0.7rem;
     border-radius: var(--radius-pill);
@@ -461,8 +426,6 @@ a {
     text-shadow: 0 0 8px rgba(255, 45, 170, 0.3);
 }
 
-/* ---- Progress Bar ---- */
-
 .faucet-progress {
     display: flex;
     flex-direction: column;
@@ -486,7 +449,6 @@ a {
     box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
 }
 
-/* Animated shine on progress bar */
 .progress-fill::after {
     content: '';
     position: absolute;
@@ -518,8 +480,6 @@ a {
     border-radius: 7px;
 }
 
-/* ---- Detail Rows ---- */
-
 .faucet-details {
     display: flex;
     flex-direction: column;
@@ -547,8 +507,6 @@ a {
     color: var(--neon-cyan);
 }
 
-/* ---- Claim ---- */
-
 .claim-wrapper {
     display: flex;
     flex-direction: column;
@@ -567,8 +525,6 @@ a {
     font-weight: 600;
     text-shadow: 0 0 8px rgba(57, 255, 20, 0.3);
 }
-
-/* ---- Token Info ---- */
 
 .token-info {
     display: flex;
@@ -607,8 +563,6 @@ a {
     font-size: 0.75rem;
 }
 
-/* ---- Create Form ---- */
-
 .create-faucet-wrapper {
     max-width: 600px;
     margin: 0 auto;
@@ -628,7 +582,6 @@ a {
     overflow: hidden;
 }
 
-/* Gradient accent on form card too */
 .form-card::before {
     content: '';
     position: absolute;
@@ -734,8 +687,6 @@ a {
     text-shadow: 0 0 8px rgba(57, 255, 20, 0.3);
 }
 
-/* ---- Waiting State ---- */
-
 .waiting-state {
     display: flex;
     flex-direction: column;
@@ -775,8 +726,6 @@ a {
         transform: rotate(360deg);
     }
 }
-
-/* ---- Faucet Detail ---- */
 
 .faucet-detail-wrapper {
     max-width: 720px;
@@ -874,8 +823,6 @@ a {
     padding-top: 0.5rem;
 }
 
-/* ---- Page Load Animation ---- */
-
 .main-content {
     animation: fadeSlideIn 0.5s ease-out;
 }
@@ -891,7 +838,6 @@ a {
     }
 }
 
-/* Staggered card entrance */
 .faucet-card {
     animation: cardEntrance 0.4s ease-out backwards;
 }
@@ -917,14 +863,10 @@ a {
     }
 }
 
-/* ---- Selection ---- */
-
 ::selection {
     background: rgba(0, 240, 255, 0.25);
     color: #fff;
 }
-
-/* ---- Responsive ---- */
 
 @media (max-width: 768px) {
     .header-inner {

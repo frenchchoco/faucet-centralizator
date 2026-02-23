@@ -10,18 +10,7 @@ export interface TokenInfo {
     decimals: number;
 }
 
-interface UseTokenInfoReturn {
-    tokenInfo: TokenInfo | null;
-    loading: boolean;
-    error: string | null;
-    refetch: () => void;
-}
-
-/**
- * Given a token contract address (0x hex string), fetches name, symbol, and decimals
- * using the OP_20 ABI via getContract.
- */
-export function useTokenInfo(tokenAddress: string | null): UseTokenInfoReturn {
+export function useTokenInfo(tokenAddress: string | null) {
     const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -32,42 +21,21 @@ export function useTokenInfo(tokenAddress: string | null): UseTokenInfoReturn {
             setError(null);
             return;
         }
-
         setLoading(true);
         setError(null);
-
         try {
-            const provider = getProvider();
-            const contract = getContract<IOP20Contract>(
-                tokenAddress,
-                OP_20_ABI,
-                provider,
-                CURRENT_NETWORK,
-            );
-
-            const [nameResult, symbolResult, decimalsResult] = await Promise.all([
-                contract.name(),
-                contract.symbol(),
-                contract.decimals(),
-            ]);
-
-            setTokenInfo({
-                name: nameResult.properties.name,
-                symbol: symbolResult.properties.symbol,
-                decimals: decimalsResult.properties.decimals,
-            });
+            const c = getContract<IOP20Contract>(tokenAddress, OP_20_ABI, getProvider(), CURRENT_NETWORK);
+            const [n, s, d] = await Promise.all([c.name(), c.symbol(), c.decimals()]);
+            setTokenInfo({ name: n.properties.name, symbol: s.properties.symbol, decimals: d.properties.decimals });
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Failed to fetch token info';
-            setError(message);
+            setError(err instanceof Error ? err.message : 'Failed to fetch token info');
             setTokenInfo(null);
         } finally {
             setLoading(false);
         }
     }, [tokenAddress]);
 
-    useEffect(() => {
-        void fetchTokenInfo();
-    }, [fetchTokenInfo]);
+    useEffect(() => { void fetchTokenInfo(); }, [fetchTokenInfo]);
 
     return { tokenInfo, loading, error, refetch: fetchTokenInfo };
 }
