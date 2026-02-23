@@ -1,5 +1,5 @@
 import { JSONRpcProvider } from 'opnet';
-import { TESTNET_RPC_URL, CURRENT_NETWORK } from '../config/networks.js';
+import { REGTEST_RPC_URL, CURRENT_NETWORK } from '../config/networks.js';
 
 let provider: JSONRpcProvider | null = null;
 
@@ -9,7 +9,7 @@ let provider: JSONRpcProvider | null = null;
 export function getProvider(): JSONRpcProvider {
     if (!provider) {
         provider = new JSONRpcProvider({
-            url: TESTNET_RPC_URL,
+            url: REGTEST_RPC_URL,
             network: CURRENT_NETWORK,
         });
     }

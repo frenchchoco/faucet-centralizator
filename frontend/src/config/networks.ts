@@ -1,5 +1,5 @@
 import { networks } from '@btc-vision/bitcoin';
 
-export const TESTNET_RPC_URL = 'https://testnet.opnet.org';
+export const REGTEST_RPC_URL = 'https://regtest.opnet.org';
 
-export const CURRENT_NETWORK = networks.opnetTestnet;
+export const CURRENT_NETWORK = networks.regtest;

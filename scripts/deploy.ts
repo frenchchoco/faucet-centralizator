@@ -46,14 +46,24 @@ const SCRIPTS_DIR = __dirname;
 // ── Network config ────────────────────────────────────────────────
 
 const isMainnet = process.argv.includes('--mainnet');
-const NETWORK = isMainnet ? networks.bitcoin : networks.opnetTestnet;
-const RPC_URL = isMainnet ? 'https://api.opnet.org' : 'https://testnet.opnet.org';
-const NETWORK_LABEL = isMainnet ? 'mainnet' : 'testnet';
-const CURRENCY = isMainnet ? 'BTC' : 'tBTC';
+const isTestnet = process.argv.includes('--testnet');
+// Default = regtest (contest network)
+const NETWORK = isMainnet
+    ? networks.bitcoin
+    : isTestnet
+        ? networks.opnetTestnet
+        : networks.regtest;
+const RPC_URL = isMainnet
+    ? 'https://api.opnet.org'
+    : isTestnet
+        ? 'https://testnet.opnet.org'
+        : 'https://regtest.opnet.org';
+const NETWORK_LABEL = isMainnet ? 'mainnet' : isTestnet ? 'testnet' : 'regtest';
+const CURRENCY = isMainnet ? 'BTC' : 'rBTC';
 const FAUCET_URL = 'https://faucet.opnet.org';
 
 const POLL_INTERVAL_MS = 10_000;
-const MAX_POLL_MS = isMainnet ? 30 * 60_000 : 5 * 60_000; // testnet blocktime ~2min
+const MAX_POLL_MS = isMainnet ? 30 * 60_000 : 15 * 60_000; // regtest ~10min blocks
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -272,7 +282,7 @@ async function main(): Promise<void> {
     const factory = new TransactionFactory();
 
     const deploymentParams: IDeploymentParameters = {
-        from: wallet.address.toHex(),
+        from: wallet.p2tr,
         utxos,
         signer: wallet.keypair,
         mldsaSigner: wallet.mldsaKeypair,
@@ -293,11 +303,30 @@ async function main(): Promise<void> {
 
     console.log('  Broadcasting funding TX...');
     const fundingResult = await provider.sendRawTransaction(deployment.transaction[0], false);
+    if (!fundingResult.success) {
+        throw new Error(`Funding TX failed: ${fundingResult.error ?? fundingResult.result ?? 'unknown error'}`);
+    }
     console.log(`  Funding TX: ${fundingResult.result ?? 'submitted'}`);
+
+    // Wait for funding TX to propagate before broadcasting reveal
+    console.log('  Waiting 15s for funding TX to propagate...');
+    await sleep(15_000);
 
     console.log('  Broadcasting reveal TX...');
     const revealResult = await provider.sendRawTransaction(deployment.transaction[1], false);
-    console.log(`  Reveal TX:  ${revealResult.result ?? 'submitted'}`);
+    if (!revealResult.success) {
+        // Retry once after longer wait
+        const err = revealResult.error ?? revealResult.result ?? 'unknown';
+        console.log(`  Reveal failed: ${err}. Retrying in 20s...`);
+        await sleep(20_000);
+        const retry = await provider.sendRawTransaction(deployment.transaction[1], false);
+        if (!retry.success) {
+            throw new Error(`Reveal TX failed after retry: ${retry.error ?? retry.result ?? 'unknown error'}`);
+        }
+        console.log(`  Reveal TX:  ${retry.result ?? 'submitted'} (retry succeeded)`);
+    } else {
+        console.log(`  Reveal TX:  ${revealResult.result ?? 'submitted'}`);
+    }
 
     // Cleanup sensitive material
     mnemonic.zeroize();
