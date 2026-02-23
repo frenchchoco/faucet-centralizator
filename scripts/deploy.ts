@@ -46,10 +46,10 @@ const SCRIPTS_DIR = __dirname;
 // ── Network config ────────────────────────────────────────────────
 
 const isMainnet = process.argv.includes('--mainnet');
-const NETWORK = isMainnet ? networks.bitcoin : networks.regtest;
-const RPC_URL = isMainnet ? 'https://api.opnet.org' : 'https://regtest.opnet.org';
-const NETWORK_LABEL = isMainnet ? 'mainnet' : 'regtest';
-const CURRENCY = isMainnet ? 'BTC' : 'rBTC';
+const NETWORK = isMainnet ? networks.bitcoin : networks.opnetTestnet;
+const RPC_URL = isMainnet ? 'https://api.opnet.org' : 'https://testnet.opnet.org';
+const NETWORK_LABEL = isMainnet ? 'mainnet' : 'testnet';
+const CURRENCY = isMainnet ? 'BTC' : 'tBTC';
 const FAUCET_URL = 'https://faucet.opnet.org';
 
 const POLL_INTERVAL_MS = 10_000;

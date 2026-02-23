@@ -8,8 +8,8 @@
     },
     "dependencies": {
         "@btc-vision/bitcoin": "^7.0.0-rc.5",
-        "@btc-vision/transaction": "^1.8.0-rc.5",
-        "opnet": "^1.8.1-rc.8"
+        "@btc-vision/transaction": "^1.8.0-rc.7",
+        "opnet": "^1.8.1-rc.9"
     },
     "devDependencies": {
         "tsx": "latest",
