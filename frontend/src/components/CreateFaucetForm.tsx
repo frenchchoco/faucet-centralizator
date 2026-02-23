@@ -25,7 +25,7 @@ const POLL_MS = 15_000;
 const MAX_WAIT_MS = 15 * 60_000;
 
 export function CreateFaucetForm(): React.JSX.Element {
-    const { walletAddress, address: senderAddress, provider: walletProvider, network: walletNetwork } = useWalletConnect();
+    const { walletAddress, address: senderAddress } = useWalletConnect();
     const [tokenAddress, setTokenAddress] = useState('');
     const [totalAmount, setTotalAmount] = useState('');
     const [amountPerClaim, setAmountPerClaim] = useState('');
@@ -41,9 +41,8 @@ export function CreateFaucetForm(): React.JSX.Element {
     const { tokenInfo } = useTokenInfo(tokenAddress || null);
     const decimals = tokenInfo?.decimals ?? 8;
 
-    // Use wallet provider/network when available, fall back to config
-    const provider = walletProvider ?? getProvider();
-    const network = walletNetwork ?? CURRENT_NETWORK;
+    const provider = getProvider();
+    const network = CURRENT_NETWORK;
 
     const stopPolling = () => {
         if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -63,7 +62,7 @@ export function CreateFaucetForm(): React.JSX.Element {
     };
 
     useEffect(() => {
-        if (step !== 'approve' || !senderAddress || !tokenAddress || !totalAmount || !tokenInfo) return;
+        if (step !== 'approve' || !senderAddress || !tokenAddress || !totalAmount || !amountPerClaim || !tokenInfo) return;
         let cancelled = false;
         (async () => {
             try {
@@ -76,11 +75,11 @@ export function CreateFaucetForm(): React.JSX.Element {
             } catch { /* ignore */ }
         })();
         return () => { cancelled = true; };
-    }, [step, senderAddress, tokenAddress, totalAmount, tokenInfo]);
+    }, [step, senderAddress, tokenAddress, totalAmount, amountPerClaim, tokenInfo]);
 
     const buildTxParams = (): TransactionParameters => ({
         signer: null, mldsaSigner: null, refundTo: walletAddress!,
-        maximumAllowedSatToSpend: 100_000n, feeRate: 10, network,
+        maximumAllowedSatToSpend: 100_000n, network: CURRENT_NETWORK,
     });
 
     const startPolling = (checkFn: () => Promise<boolean>, onDone: () => void) => {

@@ -4,7 +4,7 @@ import { networks } from '@btc-vision/bitcoin';
  * Set VITE_NETWORK to "regtest", "testnet", or "mainnet".
  * Defaults to "testnet" (contest network).
  * ──────────────────────────────────────────────────────────── */
-const NET_NAME = (import.meta.env.VITE_NETWORK ?? 'testnet') as string;
+const NET_NAME = ((import.meta.env.VITE_NETWORK ?? 'testnet') as string).trim();
 
 export const CURRENT_NETWORK =
     NET_NAME === 'mainnet' ? networks.bitcoin

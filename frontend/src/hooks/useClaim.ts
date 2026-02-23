@@ -1,8 +1,6 @@
 import { useCallback, useState } from 'react';
 import { getContract } from 'opnet';
-import type { AbstractRpcProvider } from 'opnet';
 import type { Address } from '@btc-vision/transaction';
-import type { Network } from '@btc-vision/bitcoin';
 import { FAUCET_MANAGER_ABI } from '../abi/FaucetManagerABI.js';
 import type { IFaucetManagerContract } from '../abi/FaucetManagerABI.js';
 import { FAUCET_MANAGER_ADDRESS } from '../config/contracts.js';
@@ -27,15 +25,9 @@ function saveClaimTime(faucetId: number, wallet: string): void {
 }
 
 /* ── Contract helper ──────────────────────────────────────── */
-function getManager(
-    sender?: Address,
-    walletProvider?: AbstractRpcProvider | null,
-    walletNetwork?: Network | null,
-) {
-    const provider = walletProvider ?? getProvider();
-    const network = walletNetwork ?? CURRENT_NETWORK;
+function getManager(sender?: Address) {
     return getContract<IFaucetManagerContract>(
-        FAUCET_MANAGER_ADDRESS, FAUCET_MANAGER_ABI, provider, network,
+        FAUCET_MANAGER_ADDRESS, FAUCET_MANAGER_ABI, getProvider(), CURRENT_NETWORK,
         sender ?? undefined,
     );
 }
@@ -45,16 +37,13 @@ export type ClaimStatus = 'ready' | 'cooldown' | 'already-claimed' | 'depleted' 
 
 /**
  * Simulate a claim to check if it would succeed on-chain right now.
- * Uses wallet provider/network when available.
  */
 export async function simulateClaim(
     faucetId: number,
     sender?: Address,
-    walletProvider?: AbstractRpcProvider | null,
-    walletNetwork?: Network | null,
 ): Promise<ClaimStatus> {
     try {
-        const sim = await getManager(sender, walletProvider, walletNetwork).claim(BigInt(faucetId));
+        const sim = await getManager(sender).claim(BigInt(faucetId));
         if (sim.revert) {
             const r = sim.revert;
             if (/already claimed/i.test(r)) return 'already-claimed';
@@ -96,8 +85,6 @@ async function recordClaim(faucetId: number, cooldownSeconds: number): Promise<v
 export function useClaim(
     walletAddress: string | null,
     senderAddress: Address | null,
-    walletProvider?: AbstractRpcProvider | null,
-    walletNetwork?: Network | null,
 ) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -117,25 +104,33 @@ export function useClaim(
                 return false;
             }
 
-            const network = walletNetwork ?? CURRENT_NETWORK;
-            const contract = getManager(senderAddress ?? undefined, walletProvider, walletNetwork);
+            const contract = getManager(senderAddress ?? undefined);
             const sim = await contract.claim(BigInt(faucetId));
             if (sim.revert) { setError(`Simulation reverted: ${sim.revert}`); return false; }
             const receipt = await sim.sendTransaction({
                 signer: null, mldsaSigner: null, refundTo: walletAddress,
-                maximumAllowedSatToSpend: 100_000n, feeRate: 10, network,
+                maximumAllowedSatToSpend: 100_000n, network: CURRENT_NETWORK,
             });
             setTxId(receipt.transactionId);
             saveClaimTime(faucetId, walletAddress);
             void recordClaim(faucetId, cd);
             return true;
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Claim failed');
+            const msg = err instanceof Error ? err.message : String(err);
+            if (/chain not set/i.test(msg)) {
+                setError('Wallet chain not configured. Please switch OP_WALLET to the correct network (testnet) and reconnect.');
+            } else if (/inputs-missingorspent|missing-inputs/i.test(msg)) {
+                setError('Transaction failed — your wallet UTXOs may be stale. Please refresh your wallet and try again.');
+            } else if (/insufficient/i.test(msg)) {
+                setError('Insufficient BTC for gas fees. Fund your wallet with testnet BTC first.');
+            } else {
+                setError(msg || 'Claim failed');
+            }
             return false;
         } finally {
             setLoading(false);
         }
-    }, [walletAddress, senderAddress, walletProvider, walletNetwork]);
+    }, [walletAddress, senderAddress]);
 
     return { claim, loading, error, txId };
 }
