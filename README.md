@@ -36,6 +36,7 @@ That's it. The script handles everything automatically:
 
 The only manual step is funding your wallet with regtest BTC from the faucet.
 
+For testnet: `npm run deploy:testnet`
 For mainnet: `npm run deploy:mainnet`
 
 ## Architecture
@@ -117,12 +118,15 @@ npm run build:frontend
 - **Wallet**: @btc-vision/walletconnect v2 (OP_WALLET)
 - **Blockchain SDK**: opnet npm package, @btc-vision/transaction
 - **Anti-Sybil**: Vercel Edge Functions + Vercel KV
-- **Deployment**: Vercel (frontend), OPNet testnet (contract)
+- **Deployment**: Vercel (frontend), OPNet regtest (contract)
 
-## Network
+## Networks
 
-- **Network**: OPNet Testnet
-- **RPC**: `https://testnet.opnet.org`
+| Command | Network | RPC |
+|---------|---------|-----|
+| `npm run deploy` | **Regtest** (default, contest) | `https://regtest.opnet.org` |
+| `npm run deploy:testnet` | Testnet | `https://testnet.opnet.org` |
+| `npm run deploy:mainnet` | Mainnet | `https://api.opnet.org` |
 
 ## License
 
