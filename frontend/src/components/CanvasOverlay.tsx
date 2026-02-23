@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 
 /* ── Key sequence ────────────────────────────────────────── */
+/* Uses KeyboardEvent.code (physical key) — layout-independent */
 const SEQ = [
     'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
     'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight',
-    'b', 'a',
+    'KeyB', 'KeyA',
 ];
 
 /* ── Canvas animation ────────────────────────────────────── */
@@ -134,7 +135,7 @@ export function CanvasOverlay(): React.JSX.Element | null {
     /* Listen for Konami Code */
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         const buf = bufferRef.current;
-        buf.push(e.key);
+        buf.push(e.code);
         // Keep buffer same length as code
         if (buf.length > SEQ.length) buf.shift();
 
