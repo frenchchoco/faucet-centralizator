@@ -5,7 +5,7 @@ import { NETWORK_LABEL } from './networks.js';
  * ──────────────────────────────────────────────────────────── */
 const ADDRESSES: Record<string, string> = {
     regtest: 'opr1sqrxdph4ut5z8ggs8wx6ccplfp8qsasx9uy08w3ld',
-    testnet: '',
+    testnet: 'opt1sqp45sjj7wplwl47l0zg28aursxncuydmxurd4q8s',
     mainnet: '',
 };
 
