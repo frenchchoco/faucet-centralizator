@@ -168,7 +168,7 @@ async function main(): Promise<void> {
     }
 
     const mnemonic = new Mnemonic(mnemonicPhrase, '', NETWORK, MLDSASecurityLevel.LEVEL2);
-    const wallet = mnemonic.derive(0);
+    const wallet = mnemonic.deriveOPWallet();
 
     console.log('');
     console.log(`  P2TR address : ${wallet.p2tr}`);

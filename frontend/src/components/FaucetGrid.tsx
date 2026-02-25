@@ -60,12 +60,15 @@ export function FaucetGrid(): React.JSX.Element {
         return opts.sort((a, b) => a.label.localeCompare(b.label));
     }, [uniqueAddresses, tokenInfoMap]);
 
+    /** A faucet is effectively depleted when inactive OR not enough balance for a claim */
+    const isEffectivelyActive = (f: FaucetData) => f.active && f.remainingBalance >= f.amountPerClaim;
+
     /* Apply filters */
     const filtered = useMemo(() => {
         let result: FaucetData[] = [...faucets];
 
-        if (statusFilter === 'active') result = result.filter((f) => f.active);
-        else if (statusFilter === 'depleted') result = result.filter((f) => !f.active);
+        if (statusFilter === 'active') result = result.filter((f) => isEffectivelyActive(f));
+        else if (statusFilter === 'depleted') result = result.filter((f) => !isEffectivelyActive(f));
 
         if (tokenFilter !== 'all') result = result.filter((f) => f.tokenAddress.toHex() === tokenFilter);
 
@@ -82,7 +85,9 @@ export function FaucetGrid(): React.JSX.Element {
                 break;
             case 'depleted-last':
                 result.sort((a, b) => {
-                    if (a.active !== b.active) return a.active ? -1 : 1;
+                    const aActive = isEffectivelyActive(a);
+                    const bActive = isEffectivelyActive(b);
+                    if (aActive !== bActive) return aActive ? -1 : 1;
                     return b.id - a.id;
                 });
                 break;
