@@ -94,11 +94,15 @@ export function CreateFaucetForm(): React.JSX.Element {
 
     const handleApprove = async () => {
         if (!walletAddress) { setError('Connect your wallet first'); return; }
+        if (!senderAddress) { setError('Wallet not fully connected — reconnect and try again'); return; }
         if (!tokenAddress || !totalAmount) { setError('Fill in token address and total amount'); return; }
+        if (!FAUCET_MANAGER_ADDRESS) { setError('Faucet manager contract address is not configured'); return; }
         setLoading(true); setError(null); setSuccessMsg(null);
         try {
             const rawAmount = parseAmount(totalAmount, decimals);
-            const sim = await getTokenContract().increaseAllowance(await getFaucetManagerAddr(), rawAmount);
+            const faucetAddr = await getFaucetManagerAddr();
+            if (!faucetAddr) { setError('Could not resolve faucet manager address on-chain'); return; }
+            const sim = await getTokenContract().increaseAllowance(faucetAddr, rawAmount);
             if (sim.revert) { setError(`Approve reverted: ${sim.revert}`); return; }
             const receipt = await sim.sendTransaction(buildTxParams());
             setPendingTxId(receipt.transactionId);
@@ -109,7 +113,12 @@ export function CreateFaucetForm(): React.JSX.Element {
                 setSuccessMsg('Approval confirmed! You can now create the faucet.');
             });
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Approval failed');
+            const msg = err instanceof Error ? err.message : 'Approval failed';
+            if (/address not set/i.test(msg)) {
+                setError('This token contract has no MLDSA public key registered on-chain. The token deployer must enable linkMLDSAPublicKeyToAddress.');
+            } else {
+                setError(msg);
+            }
         } finally { setLoading(false); }
     };
 
