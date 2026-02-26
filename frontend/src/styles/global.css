@@ -705,6 +705,52 @@ a {
     gap: 0.4rem;
 }
 
+.token-address-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.6rem;
+    margin: 0 -0.2rem;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.token-address-copy {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: none;
+    border: 1px solid rgba(0, 240, 255, 0.15);
+    border-radius: var(--radius-sm);
+    padding: 0.2rem 0.5rem;
+    color: var(--neon-cyan);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.token-address-copy:hover {
+    background: rgba(0, 240, 255, 0.08);
+    border-color: rgba(0, 240, 255, 0.35);
+    box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
+}
+
+.token-address-text {
+    opacity: 0.85;
+}
+
+.copy-icon {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.token-address-copy:hover .copy-icon {
+    opacity: 1;
+}
+
 .detail-row {
     display: flex;
     justify-content: space-between;

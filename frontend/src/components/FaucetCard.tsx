@@ -7,10 +7,13 @@ import { useHoloTilt } from '../hooks/useHoloTilt.js';
 import { useClaimParticles } from '../hooks/useClaimParticles.js';
 import { usePendingClaims } from '../hooks/usePendingClaims.js';
 import { ClaimButton } from './ClaimButton.js';
+import { useToast } from './Toast.js';
 import { getCooldownLabel, formatTokenAmount } from '../utils/format.js';
 
 export function FaucetCard({ faucet, onClaimed }: { faucet: FaucetData; onClaimed?: () => void }): React.JSX.Element {
-    const { tokenInfo } = useTokenInfo(faucet.tokenAddress.toHex());
+    const tokenHex = faucet.tokenAddress.toHex();
+    const { tokenInfo } = useTokenInfo(tokenHex);
+    const { toast } = useToast();
     const d = tokenInfo?.decimals ?? 8;
     const isDepleted = !faucet.active || faucet.remainingBalance < faucet.amountPerClaim;
     const progress = faucet.totalDeposited > 0n ? Number((faucet.remainingBalance * 100n) / faucet.totalDeposited) : 0;
@@ -85,6 +88,22 @@ export function FaucetCard({ faucet, onClaimed }: { faucet: FaucetData; onClaime
                     )}
                 </div>
             </Link>
+            <div className="token-address-row">
+                <span className="detail-label">Token:</span>
+                <button
+                    className="token-address-copy"
+                    onClick={() => {
+                        void navigator.clipboard.writeText(tokenHex).then(
+                            () => toast('Address copied!', 'info'),
+                            () => toast('Copy failed', 'error'),
+                        );
+                    }}
+                    title="Copy token address"
+                >
+                    <span className="token-address-text">{tokenHex.slice(0, 10)}...{tokenHex.slice(-8)}</span>
+                    <span className="copy-icon">&#128203;</span>
+                </button>
+            </div>
             <ClaimButton faucetId={faucet.id} active={!isDepleted} cooldownSeconds={faucet.cooldownSeconds} amountPerClaim={faucet.amountPerClaim} onClaimed={handleClaimed} />
         </div>
     );
