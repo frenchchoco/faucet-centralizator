@@ -559,6 +559,8 @@ a {
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
+    position: relative;
+    z-index: 4;
 }
 
 .faucet-card-header {
@@ -714,6 +716,8 @@ a {
     margin: 0 -0.2rem;
     border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.03);
+    position: relative;
+    z-index: 4;
 }
 
 .token-address-copy {
@@ -776,6 +780,8 @@ a {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    position: relative;
+    z-index: 4;
 }
 
 .claim-error {
