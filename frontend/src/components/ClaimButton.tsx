@@ -13,10 +13,11 @@ interface ClaimButtonProps {
     faucetId: number;
     active: boolean;
     cooldownSeconds: bigint;
+    amountPerClaim?: bigint;
     onClaimed?: () => void;
 }
 
-export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: ClaimButtonProps): React.JSX.Element {
+export function ClaimButton({ faucetId, active, cooldownSeconds, amountPerClaim, onClaimed }: ClaimButtonProps): React.JSX.Element {
     const { walletAddress, address: senderAddress } = useWalletConnect();
     const { claim, loading, error, txId } = useClaim(walletAddress, senderAddress);
     const { toast } = useToast();
@@ -135,7 +136,7 @@ export function ClaimButton({ faucetId, active, cooldownSeconds, onClaimed }: Cl
     /* ── Handle claim ────────────────────────────────────── */
     const handleClaim = async () => {
         justClaimedRef.current = true;
-        const success = await claim(faucetId, Number(cooldownSeconds));
+        const success = await claim(faucetId, Number(cooldownSeconds), amountPerClaim);
         if (success) {
             if (isOneShot) {
                 setOnChainStatus('already-claimed');

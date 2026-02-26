@@ -6,6 +6,7 @@ import type { IFaucetManagerContract } from '../abi/FaucetManagerABI.js';
 import { FAUCET_MANAGER_ADDRESS } from '../config/contracts.js';
 import { CURRENT_NETWORK } from '../config/networks.js';
 import { getProvider } from '../services/ProviderService.js';
+import { addPending } from './usePendingClaims.js';
 
 /* ── localStorage helpers ─────────────────────────────────── */
 function claimKey(faucetId: number, wallet: string): string {
@@ -90,7 +91,7 @@ export function useClaim(
     const [error, setError] = useState<string | null>(null);
     const [txId, setTxId] = useState<string | null>(null);
 
-    const claim = useCallback(async (faucetId: number, cooldownSeconds?: number): Promise<boolean> => {
+    const claim = useCallback(async (faucetId: number, cooldownSeconds?: number, amountPerClaim?: bigint): Promise<boolean> => {
         if (!walletAddress) { setError('Wallet not connected'); return false; }
         setLoading(true);
         setError(null);
@@ -113,6 +114,7 @@ export function useClaim(
             });
             setTxId(receipt.transactionId);
             saveClaimTime(faucetId, walletAddress);
+            if (amountPerClaim) addPending(faucetId, amountPerClaim, receipt.transactionId);
             void recordClaim(faucetId, cd);
             return true;
         } catch (err) {

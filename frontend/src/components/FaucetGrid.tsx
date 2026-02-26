@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import { Link } from 'react-router-dom';
 import { useFaucets } from '../hooks/useFaucets.js';
 import { useTokenInfoMap } from '../hooks/useTokenInfoMap.js';
+import { useHasPendingClaims } from '../hooks/usePendingClaims.js';
+import { BLOCK_INTERVAL_SECONDS } from '../config/networks.js';
 import type { FaucetData } from '../hooks/useFaucets.js';
 import { FaucetCard } from './FaucetCard.js';
 
@@ -30,14 +32,49 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
     { value: 'per-claim', label: 'Highest per claim' },
 ];
 
+/* ── Refetch schedule ─────────────────────────────────────── */
+const FIRST_RETRY_MS = 10_000;                           // 10s — catch fast blocks
+const BLOCK_RETRY_MS = BLOCK_INTERVAL_SECONDS * 1000;    // 120s testnet / 600s regtest
+const MAX_RETRIES = 5;
+
 /* ── Main component ──────────────────────────────────────── */
 export function FaucetGrid(): React.JSX.Element {
     const { faucets, loading, error, refetch, silentRefetch } = useFaucets();
+    const hasPending = useHasPendingClaims();
+    const retryTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-    /** Delayed silent refetch — waits for particles to finish (~2.5s) */
-    const delayedRefetch = useCallback(() => {
-        setTimeout(silentRefetch, 2500);
+    /** Schedule a series of silent refetches after a claim */
+    const scheduleRefetches = useCallback(() => {
+        // Clear any existing timers
+        for (const t of retryTimers.current) clearTimeout(t);
+        retryTimers.current = [];
+
+        // First quick check at 10s, then every block interval
+        retryTimers.current.push(setTimeout(silentRefetch, FIRST_RETRY_MS));
+        for (let i = 1; i <= MAX_RETRIES; i++) {
+            retryTimers.current.push(
+                setTimeout(silentRefetch, FIRST_RETRY_MS + BLOCK_RETRY_MS * i),
+            );
+        }
     }, [silentRefetch]);
+
+    // Clean up timers on unmount
+    useEffect(() => {
+        return () => { for (const t of retryTimers.current) clearTimeout(t); };
+    }, []);
+
+    // Stop retrying once pending claims are reconciled
+    useEffect(() => {
+        if (!hasPending && retryTimers.current.length > 0) {
+            for (const t of retryTimers.current) clearTimeout(t);
+            retryTimers.current = [];
+        }
+    }, [hasPending]);
+
+    /** Called after a successful claim — kick off the refetch schedule */
+    const delayedRefetch = useCallback(() => {
+        scheduleRefetches();
+    }, [scheduleRefetches]);
 
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [tokenFilter, setTokenFilter] = useState<string>('all');

@@ -6,6 +6,7 @@ import type { IFaucetManagerContract } from '../abi/FaucetManagerABI.js';
 import { FAUCET_MANAGER_ADDRESS } from '../config/contracts.js';
 import { CURRENT_NETWORK } from '../config/networks.js';
 import { getProvider } from '../services/ProviderService.js';
+import { getPendingForFaucet, removePendingForFaucet } from './usePendingClaims.js';
 
 export interface FaucetData {
     id: number;
@@ -29,6 +30,7 @@ export function useFaucets() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const initialLoadDone = useRef(false);
+    const prevBalances = useRef<Map<number, bigint>>(new Map());
 
     const fetchFaucets = useCallback(async (silent = false) => {
         // Only show skeletons on initial load, not on refetch
@@ -44,6 +46,25 @@ export function useFaucets() {
                     results.push({ id: i, ...p });
                 } catch { /* skip */ }
             }
+
+            // Reconcile pending claims against confirmed balance changes
+            for (const f of results) {
+                const prev = prevBalances.current.get(f.id);
+                if (prev !== undefined && f.remainingBalance < prev) {
+                    const drop = prev - f.remainingBalance;
+                    const pending = getPendingForFaucet(f.id);
+                    if (pending.count > 0 && pending.amount <= drop) {
+                        removePendingForFaucet(f.id);
+                    } else if (pending.count > 0) {
+                        // Partial reconciliation: remove oldest entries that fit in the drop
+                        const perClaim = f.amountPerClaim;
+                        const confirmedCount = perClaim > 0n ? Number(drop / perClaim) : 0;
+                        if (confirmedCount > 0) removePendingForFaucet(f.id, confirmedCount);
+                    }
+                }
+                prevBalances.current.set(f.id, f.remainingBalance);
+            }
+
             setFaucets(results);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch faucets');

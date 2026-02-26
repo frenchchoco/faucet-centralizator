@@ -5,6 +5,7 @@ import type { FaucetData } from '../hooks/useFaucets.js';
 import { useTokenInfo } from '../hooks/useTokenInfo.js';
 import { useHoloTilt } from '../hooks/useHoloTilt.js';
 import { useClaimParticles } from '../hooks/useClaimParticles.js';
+import { usePendingClaims } from '../hooks/usePendingClaims.js';
 import { ClaimButton } from './ClaimButton.js';
 import { getCooldownLabel, formatTokenAmount } from '../utils/format.js';
 
@@ -13,6 +14,8 @@ export function FaucetCard({ faucet, onClaimed }: { faucet: FaucetData; onClaime
     const d = tokenInfo?.decimals ?? 8;
     const isDepleted = !faucet.active || faucet.remainingBalance < faucet.amountPerClaim;
     const progress = faucet.totalDeposited > 0n ? Number((faucet.remainingBalance * 100n) / faucet.totalDeposited) : 0;
+    const pending = usePendingClaims(faucet.id);
+    const pendingProgress = faucet.totalDeposited > 0n ? Number((pending.amount * 100n) / faucet.totalDeposited) : 0;
 
     const { cardRef, glareRef, handleMouseMove, handleMouseLeave } = useHoloTilt();
     const { containerRef, burst } = useClaimParticles();
@@ -48,16 +51,25 @@ export function FaucetCard({ faucet, onClaimed }: { faucet: FaucetData; onClaime
                     <h3 className="faucet-token-name">
                         {tokenInfo ? `${tokenInfo.name} (${tokenInfo.symbol})` : 'Loading...'}
                     </h3>
-                    <span className={`badge ${isDepleted ? 'badge-depleted' : 'badge-active'}`}>
-                        {isDepleted ? 'Depleted' : 'Active'}
-                    </span>
+                    <div className="badge-group">
+                        <span className={`badge ${isDepleted ? 'badge-depleted' : 'badge-active'}`}>
+                            {isDepleted ? 'Depleted' : 'Active'}
+                        </span>
+                        {pending.count > 0 && (
+                            <span className="badge badge-pending">{pending.count} pending</span>
+                        )}
+                    </div>
                 </div>
                 <div className="faucet-progress">
                     <div className="progress-bar">
                         <div className="progress-fill" style={{ width: `${progress}%` }} />
+                        {pendingProgress > 0 && (
+                            <div className="progress-pending" style={{ width: `${pendingProgress}%`, left: `${Math.max(0, progress - pendingProgress)}%` }} />
+                        )}
                     </div>
                     <span className="progress-text">
                         {formatTokenAmount(faucet.remainingBalance, d)} / {formatTokenAmount(faucet.totalDeposited, d)}
+                        {pending.count > 0 && ` (-${formatTokenAmount(pending.amount, d)} pending)`}
                     </span>
                 </div>
                 <div className="faucet-details">
@@ -73,7 +85,7 @@ export function FaucetCard({ faucet, onClaimed }: { faucet: FaucetData; onClaime
                     )}
                 </div>
             </Link>
-            <ClaimButton faucetId={faucet.id} active={!isDepleted} cooldownSeconds={faucet.cooldownSeconds} onClaimed={handleClaimed} />
+            <ClaimButton faucetId={faucet.id} active={!isDepleted} cooldownSeconds={faucet.cooldownSeconds} amountPerClaim={faucet.amountPerClaim} onClaimed={handleClaimed} />
         </div>
     );
 }
